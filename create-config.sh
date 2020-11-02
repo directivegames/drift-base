@@ -1,7 +1,5 @@
 #!/bin/bash
 
-docker-compose -p backend -f compose-backend.yml up -d
-
 TIER=LOCAL
 CONFIG=dev
 CONFIG_STORE=~/.drift/config/$CONFIG
@@ -50,5 +48,3 @@ dconf set --location tiers.LOCAL --raw cache="redis://127.0.0.1:6379?prefix=dev"
 driftconfig push -f $CONFIG >/dev/null
 
 driftconfig cache $CONFIG
-
-docker-compose -p app -f compose-app.yml up
