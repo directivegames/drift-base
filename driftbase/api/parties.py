@@ -115,7 +115,7 @@ class PartyPlayerAPI(MethodView):
                    "party_id": party_id,
                    "party_url": url_for("parties.entry", party_id=party_id, _external=True),
                    "members_url": url_for("parties.members", party_id=party_id, _external=True),
-                   "invites_url": url_for("party_invites.list", party_id=party_id, _external=True),
+                   "invites_url": url_for("parties.invites", party_id=party_id, _external=True),
                }, http_client.OK
 
     def delete(self, party_id, player_id):
