@@ -9,7 +9,7 @@ from flask.views import MethodView
 from flask import url_for
 
 from drift.core.extensions.jwt import current_user
-from driftbase.flexmatch import get_player_latency_average, update_player_latency
+from driftbase.flexmatch import get_player_latency_average, update_player_latency, upsert_flexmatch_search
 from six.moves import http_client
 
 bp = Blueprint("flexmatch", "flexmatch", url_prefix="/flexmatch", description="Orchestration of GameLift/FlexMatch matchmaking")
@@ -34,12 +34,15 @@ class FlexMatchAPI(MethodView):
         player_id = current_user["player_id"]
         latency = args.get("latency_ms")
         if latency is None:
-            abort(http_client.BAD_REQUEST)
+            abort(http_client.BAD_REQUEST) # FIXME:
         update_player_latency(player_id, latency)
         return {"latency_avg": get_player_latency_average(player_id)}
 
     def post(self):
-        pass
+        #ticket = upsert_flexmatch_search(current_user["player_id"])
+        breakpoint()
+        return {"ticket_id": upsert_flexmatch_search(current_user["player_id"])}
+
 
 @endpoints.register
 def endpoint_info(*args):
