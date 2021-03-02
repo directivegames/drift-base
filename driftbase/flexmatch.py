@@ -11,17 +11,34 @@ REDIS_TTL = 1800
 gamelift_client = boto3.client("gamelift", region_name=AWS_REGION)
 
 
-def update_player_latency(player_id, latency_ms):
-    latency_key = _make_player_latency_key(player_id)
-    g.redis.conn.lpush(latency_key, latency_ms)
+def update_player_latency(player_id, region, latency_ms):
+    region_key = _make_player_latency_key(player_id) + region
+    g.redis.conn.lpush(region_key, latency_ms)
+    if g.redis.conn.llen(region_key) > NUM_VALUES_FOR_LATENCY_AVERAGE:
+        g.redis.conn.ltrim(region_key, 0, NUM_VALUES_FOR_LATENCY_AVERAGE-1)
 
-def get_player_latency_average(player_id):
-    latency_key = _make_player_latency_key(player_id)
-    g.redis.conn.ltrim(latency_key, 0, NUM_VALUES_FOR_LATENCY_AVERAGE - 1)
-    values = [float(i) for i in g.redis.conn.lrange(latency_key, 0, -1)]
-    return sum(values) / min(NUM_VALUES_FOR_LATENCY_AVERAGE, len(values)) # FIXME: default value if no values reported?
+def get_player_latency_averages(player_id):
+    player_latency_key = _make_player_latency_key(player_id)
+    regions = _get_player_regions(player_id)
+    with g.redis.conn.pipeline() as pipe:
+        for region in regions:
+            pipe.lrange(player_latency_key + region, 0, NUM_VALUES_FOR_LATENCY_AVERAGE)
+        results = pipe.execute()
+    return {
+        region: int( sum(float(l) for l in latencies) / min(NUM_VALUES_FOR_LATENCY_AVERAGE, len(latencies)) ) # FIXME: default value if no values reported?
+        for region, latencies in zip(regions, results)
+    }
+
+def _get_player_regions(player_id):
+    return [e.decode("ascii").split(':')[-1] for e in g.redis.conn.keys(_make_player_latency_key(player_id) + '*')]
+
+def _make_player_latency_key(player_id):
+    return g.redis.make_key(f"player:{player_id}:latencies:")
+
+
 
 def upsert_flexmatch_search(player_id):
+    breakpoint()
     fm_state = _get_matchmaking_status_for_player(player_id)
     if fm_state:
         # FIXME: enumerate and handle all real ticket statuses
@@ -41,7 +58,7 @@ def upsert_flexmatch_search(player_id):
             {
                 "PlayerId": str(member_id),
                 "PlayerAttribute": {"skill": {"N": 50}},
-                "LatencyInMs": {AWS_REGION: int(get_player_latency_average(member_id))} # FIXME: check if this is the intended mapping, i.e. look up the rule who consumes this
+                "LatencyInMs": get_player_latency_averages(member_id) # FIXME: check if this is the intended mapping, i.e. look up the rule who consumes this
             }
             for member_id in member_ids
         ],
@@ -65,8 +82,7 @@ def upsert_flexmatch_search(player_id):
     return {"ticket_id": ticket_id}
 
 
-def _make_player_latency_key(player_id):
-    return g.redis.make_key("player:{}:latency:".format(player_id))
+
 
 def _make_matchmaking_state_key(player_id):
     player_party_id = get_player_party(player_id)
