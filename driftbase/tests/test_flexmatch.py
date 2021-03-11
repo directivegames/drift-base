@@ -2,6 +2,15 @@
 from six.moves import http_client
 from driftbase.utils.test_utils import BaseCloudkitTest
 
+class MockGameLiftClient(object):
+    def start_matchmaking(self, **kwargs):
+        return {
+            "MatchmakingTicket": {
+                "TicketId": 123,
+                "Status": "Searching"
+            }
+        }
+
 class FlexMatchTest(BaseCloudkitTest):
         
     def test_patch_latency(self):
@@ -14,8 +23,9 @@ class FlexMatchTest(BaseCloudkitTest):
             reported_avg = response.json()["latency_avg"]["eu-west-1"]
             self.assertEqual(reported_avg, expected_avg[i])
 
-    def test_start_matchmaking_without_a_party(self):
+    def test_start_matchmaking_without_a_party_creates_event(self):
         self.auth()
         flexmatch_url = self.endpoints["flexmatch"]
         response = self.post(flexmatch_url)
-        breakpoint()
+        notification, message_number = self.get_player_notification("matchmaking", "StartedMatchMaking")
+
