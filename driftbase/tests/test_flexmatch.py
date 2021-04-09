@@ -4,18 +4,13 @@ from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
 from driftbase import flexmatch
 
+import boto3
+import random
+import sys
+
 REGION = "eu-west-1"
 
-class MockGameLiftClient(object):
-    def start_matchmaking(self, **kwargs):
-        return {
-            "MatchmakingTicket": {
-                "TicketId": 123,
-                "Status": "Searching"
-            }
-        }
-
-class FlexMatchApiTest(BaseCloudkitTest):
+class FlexMatchTest(BaseCloudkitTest):
     def test_patch_api(self):
         self.make_player()
         flexmatch_url = self.endpoints["flexmatch"]
@@ -45,9 +40,112 @@ class FlexMatchApiTest(BaseCloudkitTest):
             response = self.patch(flexmatch_url, data={'latency_ms': latency, "region": REGION}, expected_status_code=http_client.OK)
             self.assertEqual(response.json()[REGION], expected_avg[i])
 
-    #def test_start_matchmaking_without_a_party_creates_event(self):
-    #    self.auth()
-    #    flexmatch_url = self.endpoints["flexmatch"]
-    #    response = self.post(flexmatch_url)
-    #    notification, message_number = self.get_player_notification("matchmaking", "StartedMatchMaking")
+    def test_start_matchmaking(self):
+        self.make_player()
+        flexmatch_url = self.endpoints["flexmatch"]
+        with patch.object(boto3, 'client', MockGameLiftClient):
+            response = self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            self.assertTrue(response["status"] == "QUEUED")
+            self.assertEqual(response["ticket_id"], 123)
 
+    def test_start_matchmaking_doesnt_modify_ticket_if_same_player_reissues_request(self):
+        self.make_player()
+        flexmatch_url = self.endpoints["flexmatch"]
+        with patch.object(boto3, 'client', MockGameLiftClient):
+            response1 = self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            first_id = response1["debug_id"]
+            response2 = self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            second_id = response2["debug_id"]
+            self.assertEqual(first_id, second_id)
+
+    def test_start_matchmaking_creates_event(self):
+        self.make_player()
+        flexmatch_url = self.endpoints["flexmatch"]
+        with patch.object(boto3, 'client', MockGameLiftClient):
+            self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            notification, message_number = self.get_player_notification("matchmaking", "StartedMatchMaking")
+            self.assertIsInstance(notification, dict)
+            self.assertTrue(notification["event"] == "StartedMatchMaking")
+
+    def test_matchmaking_includes_party_members(self):
+        # Create a party of 2
+        member_name = self.make_player()
+        member_id = self.player_id
+        host_name = self.make_player()
+        host_id = self.player_id
+        invite = self.post(self.endpoints["party_invites"], data={'player_id': member_id}, expected_status_code=http_client.CREATED).json()
+        # Accept the invite
+        self.auth(username=member_name)
+        notification, message_number = self.get_player_notification("party_notification", "invite")
+        self.patch(notification['invite_url'], data={'inviter_id': host_id}, expected_status_code=http_client.OK).json()
+        # Let member start matchmaking
+        with patch.object(boto3, 'client', MockGameLiftClient):
+            response = self.post(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+            players = response["Players"]
+            self.assertEqual(len(players), 2)
+            expected_players = {host_id, member_id}
+            response_players = {int(e["PlayerId"]) for e in players}
+            self.assertSetEqual(response_players, expected_players)
+
+
+class MockGameLiftClient(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def start_matchmaking(self, **kwargs):
+        return {
+            "MatchmakingTicket": {
+                "ticket_id": 123,
+                # MEMO TO SELF: the current processor re-uses the status field in redis for ticket events later, so we never actually see the status, just the latest mm event
+                "status": "QUEUED", # Docs say the ticket will always be created with status QUEUED;
+                "Players": kwargs["Players"],
+                "debug_id": random.randint(-sys.maxsize, sys.maxsize)
+            }
+        }
+    # For quick reference: https://docs.aws.amazon.com/gamelift/latest/apireference/API_StartMatchmaking.html
+    ResponseSyntax = """
+    {
+        "MatchmakingTicket": {
+            "ConfigurationArn": "string",
+            "ConfigurationName": "string",
+            "EndTime": number,
+            "EstimatedWaitTime": number,
+            "GameSessionConnectionInfo": {
+                "DnsName": "string",
+                "GameSessionArn": "string",
+                "IpAddress": "string",
+                "MatchedPlayerSessions": [
+                    {
+                        "PlayerId": "string",
+                        "PlayerSessionId": "string"
+                    }
+                ],
+                "Port": number
+            },
+            "Players": [
+                {
+                    "LatencyInMs": {
+                        "string": number
+                    },
+                    "PlayerAttributes": {
+                        "string": {
+                            "N": number,
+                            "S": "string",
+                            "SDM": {
+                                "string": number
+                            },
+                            "SL": ["string"]
+                        }
+                    },
+                    "PlayerId": "string",
+                    "Team": "string"
+                }
+            ],
+            "StartTime": number,
+            "Status": "string",
+            "StatusMessage": "string",
+            "StatusReason": "string",
+            "TicketId": "string"
+        }
+    }
+    """
