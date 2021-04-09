@@ -83,10 +83,7 @@ def upsert_flexmatch_search(player_id, gl_client=None):
             ],
         )
         if "MatchmakingTicket" not in response:
-            return {
-                "error": "No 'MatchmakingTicket' in ticket response, this is weird",
-                "response_for_debug": response,
-            }
+            raise GameliftClientException("Unable to start matchmaking", response)
 
         # FIXME: finalize and encapsulate redis object format for storage, currently just storing the ticket as is.
         matchmaker.ticket = response["MatchmakingTicket"]
