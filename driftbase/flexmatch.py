@@ -84,6 +84,12 @@ def get_player_ticket(player_id):
 
 ## Helpers ##
 
+def _get_player_regions(player_id):
+    return [e.decode("ascii").split(':')[-1] for e in g.redis.conn.keys(_get_player_latency_key(player_id) + '*')]
+
+def _get_player_latency_key(player_id):
+    return g.redis.make_key(f"player:{player_id}:latencies:")
+
 def _get_player_ticket_key(player_id):
     player_party_id = get_player_party(player_id)
     if player_party_id is not None:
