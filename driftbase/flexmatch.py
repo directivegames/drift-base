@@ -6,34 +6,26 @@ import time
 import logging
 from flask import g
 from driftbase.parties import get_player_party, get_party_members
+from driftbase.resources.flexmatch import TIER_DEFAULTS
 from driftbase.api.messages import _add_message
 
+
+# FIXME: All of the below should preferably be configuration values instead of constants
 NUM_VALUES_FOR_LATENCY_AVERAGE = 3
-AWS_REGION = "eu-west-1"  #FIXME: Get from config or environment
-MATCHMAKING_CONFIGURATION_NAME = "PerseusHilmarMatchmaker" #FIXME: Get from config, client or environment
+AWS_REGION = "eu-west-1"
 REDIS_TTL = 1800
 
 log = logging.getLogger(__name__)
-#gamelift_client = boto3.client("gamelift", region_name=AWS_REGION)
+gamelift_client = boto3.client("gamelift", region_name=AWS_REGION)
 
-# DEBUGS/TESTING
-class MockGameLiftClient(object):
-    def start_matchmaking(self, **kwargs):
-        return {
-            "MatchmakingTicket": {
-                "TicketId": 123,
-                "Status": "Searching"
-            }
-        }
-gamelift_client = MockGameLiftClient()
-
-### Latency report handling ###
+###  Latency reporting  ###
 
 def update_player_latency(player_id, region, latency_ms):
     region_key = _get_player_latency_key(player_id) + region
-    g.redis.conn.lpush(region_key, latency_ms)
-    if g.redis.conn.llen(region_key) > NUM_VALUES_FOR_LATENCY_AVERAGE:
-        g.redis.conn.ltrim(region_key, 0, NUM_VALUES_FOR_LATENCY_AVERAGE-1)
+    with g.redis.conn.pipeline() as pipe:
+        pipe.lpush(region_key, latency_ms)
+        pipe.ltrim(region_key, 0, NUM_VALUES_FOR_LATENCY_AVERAGE-1)
+        pipe.execute()
 
 def get_player_latency_averages(player_id):
     player_latency_key = _get_player_latency_key(player_id)
@@ -47,18 +39,12 @@ def get_player_latency_averages(player_id):
         for region, latencies in zip(regions, results)
     }
 
-def _get_player_regions(player_id):
-    return [e.decode("ascii").split(':')[-1] for e in g.redis.conn.keys(_get_player_latency_key(player_id) + '*')]
 
-def _get_player_latency_key(player_id):
-    return g.redis.make_key(f"player:{player_id}:latencies:")
+###  Matchmaking  ###
 
-### Matchmaking  ###
-
-def upsert_flexmatch_search(player_id, gl_client=None):
-    client = gl_client if gl_client is not None else gamelift_client # Hack for testing
-    matchmaking_key = _get_matchmaking_state_key(player_id)
-    with _LockedMatchmaker(matchmaking_key) as matchmaker:
+def upsert_flexmatch_ticket(player_id):
+    matchmaking_key = _get_player_ticket_key(player_id)
+    with _LockedTicketKey(matchmaking_key) as matchmaker:
         if matchmaker.ticket: # Existing ticket found
             # FIXME: enumerate and handle all real ticket statuses?
             # FIXME: Check if I need to add this player to the ticket.
@@ -70,9 +56,9 @@ def upsert_flexmatch_search(player_id, gl_client=None):
             member_ids = get_party_members(player_party_id)
         else:
             member_ids = [player_id]
-        breakpoint()
+
         response = client.start_matchmaking(
-            ConfigurationName = MATCHMAKING_CONFIGURATION_NAME,
+            ConfigurationName = _get_flexmatch_config_name(),
             Players = [
                 {
                     "PlayerId": str(member_id),
@@ -92,14 +78,17 @@ def upsert_flexmatch_search(player_id, gl_client=None):
         _post_matchmaking_event_message_to_player(member_ids, "StartedMatchMaking")
         return matchmaker.ticket
 
-def _get_matchmaking_state_key(player_id):
+def get_player_ticket(player_id):
+    return g.redis.conn.hgetall(_get_player_ticket_key(player_id))
+
+
+## Helpers ##
+
+def _get_player_ticket_key(player_id):
     player_party_id = get_player_party(player_id)
     if player_party_id is not None:
         return g.redis.make_key("party:{}:flexmatch:".format(player_party_id))
     return g.redis.make_key("player:{}:flexmatch:".format(player_id))
-
-def _get_matchmaking_status_for_player(player_id):
-    return g.redis.conn.hgetall(_get_matchmaking_state_key(player_id))
 
 def _post_matchmaking_event_message_to_player(receiving_player_ids, event, expiry=30):
     """ Insert a event into the 'matchmaking' queue of the 'players' exchange. """
@@ -112,10 +101,20 @@ def _post_matchmaking_event_message_to_player(receiving_player_ids, event, expir
     for receiver_id in receiving_player_ids:
         _add_message("players", receiver_id, "matchmaking", payload, expiry)
 
-class _LockedMatchmaker(object):
+def _get_flexmatch_config_name():
+    configuration_name = TIER_DEFAULTS['matchmaking_configuration_name']
+    tenant = g.conf.tenant
+    if not tenant:
+        return configuration_name
+    return tenant.get('flexmatch', {}).get('matchmaking_configuration_name', configuration_name)
+
+
+class _LockedTicketKey(object):
     """
     Context manager for synchronizing creation and modification of matchmaking tickets.
     """
+    MAX_WAIT_TIME_SECONDS = 30 # Avoid stale locking by defining a maximum time a lock can be held
+
     def __init__(self, key):
         self._key = key
         self._lock_key = key + 'LOCK'
@@ -135,17 +134,30 @@ class _LockedMatchmaker(object):
 
     def __enter__(self):
         while True:
-            # Set key value if not exists to a random sentinel value with expiry of 3 seconds
-            if self._redis.conn.set(self._lock_key, self._lock_sentinel_value, nx=True, ex=30):
-                # we hold the lock
+            # Attempt to acquire the lock by setting a value on the key to a value unique to this request.
+            # Fails if the key already exists, meaning someone else is holding the lock
+            if self._redis.conn.set(self._lock_key, self._lock_sentinel_value, nx=True, ex=self.MAX_WAIT_TIME_SECONDS):
+                # we hold the lock now
                 self.ticket = self._redis.conn.hgetall(self._key)
                 return self
             else: # someone else holds the lock for this key
-                time.sleep(0.5) # We shou
+                time.sleep(0.1) # Kind of miss stackless channels for 'block-until-woken' :)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None and self._modified is True:
-            self._redis.conn.set(self._key, self._ticket)
-        value = self._redis.conn.get(self._lock_key)
-        if value == self._lock_sentinel_value:
-            self._redis.conn.delete(self._lock_key)
+        lock_sentinel_value = self._redis.conn.get(self._lock_key)
+        if lock_sentinel_value != self._lock_sentinel_value:
+            # If the sentinel value differs, we held the lock for too long and someone else is now holding the lock,
+            # so we'll bail without updating anything
+            return
+        with self._redis.conn.pipeline() as pipe:
+            if exc_type is None and self._modified is True:
+                pipe.delete(self._key) # Always update the ticket wholesale, i.e. don't leave stale fields behind.
+                pipe.hset(self._key, self._ticket)
+            pipe.delete(self._lock_key) # Release the lock
+            pipe.execute()
+
+
+class GameliftClientException(Exception):
+    def __init__(self, user_message, debug_info):  # real signature unknown
+        self.msg = user_message
+        self.debugs = debug_info
