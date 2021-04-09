@@ -7,40 +7,62 @@ from drift.core.extensions.urlregistry import Endpoints
 from marshmallow import Schema, fields
 from flask.views import MethodView
 from flask import url_for
-
-from drift.core.extensions.jwt import current_user
-from driftbase.flexmatch import get_player_latency_averages, update_player_latency, upsert_flexmatch_search
 from six.moves import http_client
 
 bp = Blueprint("flexmatch", "flexmatch", url_prefix="/flexmatch", description="Orchestration of GameLift/FlexMatch matchmaking")
 endpoints = Endpoints()
 
+import logging
+log = logging.getLogger(__name__)
+
 def drift_init_extension(app, api, **kwargs):
     api.register_blueprint(bp)
     endpoints.init_app(app)
 
+from drift.core.extensions.jwt import current_user
+from driftbase import flexmatch
+
 class FlexMatchPatchArgs(Schema):
-    latency_ms = fields.Float(description="Latency between client and whatever server he uses for measurement.")
-    region = fields.String(description="Which region the latency was measured against.")
+    latency_ms = fields.Float(required=True, description="Latency between client and the region he's measuring against.")
+    region = fields.String(required=True, description="Which region the latency was measured against.")
 
 @bp.route("/")
 class FlexMatchAPI(MethodView):
 
+    VALID_REGIONS = {"eu-west-1"}
+
     @bp.arguments(FlexMatchPatchArgs)
     def patch(self, args):
-        # FIXME: define and use proper response schema
+        """
+        Add a freshly measured latency value to the player tally.
+        Returns a region->avg_latency mapping.
+        """
         player_id = current_user["player_id"]
         latency = args.get("latency_ms")
         region = args.get("region")
-        if latency is None or region is None:
-            abort(http_client.BAD_REQUEST) # FIXME: more descriptive error
-        update_player_latency(player_id, region, latency)
-        return {"latency_avg": get_player_latency_averages(player_id)}
+        if None in (latency, region) or region not in self.VALID_REGIONS or not isinstance(latency, (int, float)):
+            abort(http_client.BAD_REQUEST) # FIXME: more descriptive error would be nice
+        flexmatch.update_player_latency(player_id, region, latency)
+        return flexmatch.get_player_latency_averages(player_id), http_client.OK
 
     def post(self):
-        ticket = upsert_flexmatch_search(current_user["player_id"])
-        return http_client.OK
+        """
+        Insert a matchmaking ticket for the requesting player or his party. Add a freshly measured latency value to the player tally.
+        Returns a region->avg_latency mapping.
+        """
+        try:
+            ticket = flexmatch.upsert_flexmatch_ticket(current_user["player_id"])
+            return ticket, http_client.OK
+        except flexmatch.GameliftClientException as e:
+            log.error("Inserting/updating matchmaking ticket for player {player} failed: Gamelift response:\n{response}".format(player=current_user["player_id"], response=str(e.debugs)))
+            return {"error": e.msg}, http_client.INTERNAL_SERVER_ERROR
 
+    def get(self):
+        """
+        Retrieve the active matchmaking ticket for the requesting player or his party, or empty dict if no such thing is found.
+        """
+        ticket = flexmatch.get_player_ticket(current_user["player_id"])
+        return ticket or {}, http_client.OK
 
 @endpoints.register
 def endpoint_info(*args):

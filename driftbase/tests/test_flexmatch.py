@@ -1,6 +1,10 @@
 
 from six.moves import http_client
 from driftbase.utils.test_utils import BaseCloudkitTest
+from unittest.mock import patch
+from driftbase import flexmatch
+
+REGION = "eu-west-1"
 
 class MockGameLiftClient(object):
     def start_matchmaking(self, **kwargs):
