@@ -8,23 +8,26 @@ from marshmallow import Schema, fields
 from flask.views import MethodView
 from flask import url_for
 from six.moves import http_client
+from drift.core.extensions.jwt import current_user
+from driftbase import flexmatch
+import logging
+
 
 bp = Blueprint("flexmatch", "flexmatch", url_prefix="/flexmatch", description="Orchestration of GameLift/FlexMatch matchmaking")
 endpoints = Endpoints()
-
-import logging
 log = logging.getLogger(__name__)
 
 def drift_init_extension(app, api, **kwargs):
     api.register_blueprint(bp)
     endpoints.init_app(app)
 
-from drift.core.extensions.jwt import current_user
-from driftbase import flexmatch
 
 class FlexMatchPatchArgs(Schema):
     latency_ms = fields.Float(required=True, description="Latency between client and the region he's measuring against.")
     region = fields.String(required=True, description="Which region the latency was measured against.")
+
+class FlexMatchPostArgs(Schema):
+    matchmaker = fields.String(required=True, description="Which matchmaker (configuration name) to issue the ticket for. ")
 
 @bp.route("/")
 class FlexMatchAPI(MethodView):
@@ -45,13 +48,14 @@ class FlexMatchAPI(MethodView):
         flexmatch.update_player_latency(player_id, region, latency)
         return flexmatch.get_player_latency_averages(player_id), http_client.OK
 
-    def post(self):
+    @bp.arguments(FlexMatchPostArgs)
+    def post(self, args):
         """
-        Insert a matchmaking ticket for the requesting player or his party. Add a freshly measured latency value to the player tally.
+        Insert a matchmaking ticket for the requesting player or his party.
         Returns a region->avg_latency mapping.
         """
         try:
-            ticket = flexmatch.upsert_flexmatch_ticket(current_user["player_id"])
+            ticket = flexmatch.upsert_flexmatch_ticket(current_user["player_id"], args.get("matchmaker"))
             return ticket, http_client.OK
         except flexmatch.GameliftClientException as e:
             log.error("Inserting/updating matchmaking ticket for player {player} failed: Gamelift response:\n{response}".format(player=current_user["player_id"], response=str(e.debugs)))

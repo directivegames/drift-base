@@ -16,13 +16,14 @@ class FlexMatchTest(BaseCloudkitTest):
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(flexmatch, 'update_player_latency', return_value=None):
             with patch.object(flexmatch, 'get_player_latency_averages', return_value={}):
-                self.patch(flexmatch_url, data={'latency_ms': 123, "region": REGION}, expected_status_code=http_client.OK)
                 self.patch(flexmatch_url, expected_status_code=http_client.UNPROCESSABLE_ENTITY)
+                self.patch(flexmatch_url, data={'latency_ms': 123, "region": REGION}, expected_status_code=http_client.OK)
 
     def test_post_api(self):
         self.make_player()
         with patch.object(flexmatch, 'upsert_flexmatch_ticket', return_value={}):
-            response = self.post(self.endpoints["flexmatch"], expected_status_code=http_client.OK)
+            self.post(self.endpoints["flexmatch"], expected_status_code=http_client.UNPROCESSABLE_ENTITY)
+            response = self.post(self.endpoints["flexmatch"], data={"matchmaker": "test"}, expected_status_code=http_client.OK)
             self.assertDictEqual(response.json(), {})
 
     def test_get_api(self):
@@ -44,7 +45,7 @@ class FlexMatchTest(BaseCloudkitTest):
         self.make_player()
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(boto3, 'client', MockGameLiftClient):
-            response = self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            response = self.post(flexmatch_url, data={"matchmaker": "test"}, expected_status_code=http_client.OK).json()
             self.assertTrue(response["status"] == "QUEUED")
             self.assertEqual(response["ticket_id"], 123)
 
@@ -52,9 +53,9 @@ class FlexMatchTest(BaseCloudkitTest):
         self.make_player()
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(boto3, 'client', MockGameLiftClient):
-            response1 = self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            response1 = self.post(flexmatch_url, data={"matchmaker": "test"}, expected_status_code=http_client.OK).json()
             first_id = response1["debug_id"]
-            response2 = self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            response2 = self.post(flexmatch_url, data={"matchmaker": "test"}, expected_status_code=http_client.OK).json()
             second_id = response2["debug_id"]
             self.assertEqual(first_id, second_id)
 
@@ -62,7 +63,7 @@ class FlexMatchTest(BaseCloudkitTest):
         self.make_player()
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(boto3, 'client', MockGameLiftClient):
-            self.post(flexmatch_url, expected_status_code=http_client.OK).json()
+            self.post(flexmatch_url, data={"matchmaker": "test"}, expected_status_code=http_client.OK).json()
             notification, message_number = self.get_player_notification("matchmaking", "StartedMatchMaking")
             self.assertIsInstance(notification, dict)
             self.assertTrue(notification["event"] == "StartedMatchMaking")
@@ -78,9 +79,9 @@ class FlexMatchTest(BaseCloudkitTest):
         self.auth(username=member_name)
         notification, message_number = self.get_player_notification("party_notification", "invite")
         self.patch(notification['invite_url'], data={'inviter_id': host_id}, expected_status_code=http_client.OK).json()
-        # Let member start matchmaking
+        # Let member start matchmaking, host should be included in the ticket
         with patch.object(boto3, 'client', MockGameLiftClient):
-            response = self.post(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+            response = self.post(self.endpoints["flexmatch"], data={"matchmaker": "test"}, expected_status_code=http_client.OK).json()
             players = response["Players"]
             self.assertEqual(len(players), 2)
             expected_players = {host_id, member_id}

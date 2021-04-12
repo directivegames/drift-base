@@ -6,9 +6,6 @@ import logging
 
 log = logging.getLogger(__name__)
 
-TIER_DEFAULTS = {"matchmaking_configuration_name": "DG-Default"}
-
-
 def drift_init_extension(app, **kwargs):
     pass
 
