@@ -47,7 +47,7 @@ def get_player_latency_averages(player_id):
 
 ###  Matchmaking  ###
 
-def upsert_flexmatch_ticket(player_id):
+def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
     with _LockedTicketKey(_get_player_ticket_key(player_id)) as matchmaker:
         # Generate a list of players relevant to the request; this is the list of online players in the party if the player belongs to one, otherwise the list is just the player
         player_party_id = get_player_party(player_id)
@@ -62,7 +62,7 @@ def upsert_flexmatch_ticket(player_id):
 
         gamelift_client = boto3.client("gamelift", region_name=AWS_REGION) # FIXME: How do I deal with aws credentials ?
         response = gamelift_client.start_matchmaking(
-            ConfigurationName = _get_flexmatch_config_name(),
+            ConfigurationName = matchmaking_configuration,
             Players = [
                 {
                     "PlayerId": str(member_id),
@@ -78,7 +78,7 @@ def upsert_flexmatch_ticket(player_id):
         # FIXME: finalize and encapsulate redis object format for storage, currently just storing the ticket as is.
         matchmaker.ticket = response["MatchmakingTicket"]
 
-        _post_matchmaking_event_message_to_player(member_ids, "StartedMatchMaking")
+        _post_matchmaking_event_to_members(member_ids, "StartedMatchMaking")
         return matchmaker.ticket
 
 def get_player_ticket(player_id):
@@ -97,14 +97,14 @@ def _get_player_latency_key(player_id):
 def _get_player_ticket_key(player_id):
     player_party_id = get_player_party(player_id)
     if player_party_id is not None:
-        return g.redis.make_key("party:{}:flexmatch:".format(player_party_id))
-    return g.redis.make_key("player:{}:flexmatch:".format(player_id))
+        return g.redis.make_key(f"party:{player_party_id}:flexmatch:")
+    return g.redis.make_key(f"player:{player_id}:flexmatch:")
 
 def _get_player_attributes(player_id):
     #FIXME: Placeholder for extra matchmaking attribute gathering per player
     return {"skill": {"N": 50}}
 
-def _post_matchmaking_event_message_to_player(receiving_player_ids, event, expiry=30):
+def _post_matchmaking_event_to_members(receiving_player_ids, event, expiry=30):
     """ Insert a event into the 'matchmaking' queue of the 'players' exchange. """
     if not receiving_player_ids:
         log.warning(f"Empty receiver in matchmaking event {event} message")
@@ -114,13 +114,6 @@ def _post_matchmaking_event_message_to_player(receiving_player_ids, event, expir
     payload = {"event": event}
     for receiver_id in receiving_player_ids:
         _add_message("players", receiver_id, "matchmaking", payload, expiry)
-
-def _get_flexmatch_config_name():
-    configuration_name = TIER_DEFAULTS['matchmaking_configuration_name']
-    tenant = g.conf.tenant
-    if not tenant:
-        return configuration_name
-    return tenant.get('flexmatch', {}).get('matchmaking_configuration_name', configuration_name)
 
 
 class _LockedTicketKey(object):
