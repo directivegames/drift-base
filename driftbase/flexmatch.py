@@ -8,7 +8,6 @@ import logging
 import json
 from flask import g
 from driftbase.parties import get_player_party, get_party_members
-from driftbase.resources.flexmatch import TIER_DEFAULTS
 from driftbase.api.messages import _add_message
 
 

@@ -13,7 +13,7 @@ from driftbase import flexmatch
 import logging
 
 
-bp = Blueprint("flexmatch", "flexmatch", url_prefix="/flexmatch", description="Orchestration of GameLift/FlexMatch matchmaking")
+bp = Blueprint("matchmaking", "matchmaking", url_prefix="/matchmaking", description="Orchestration of matchmaking.")
 endpoints = Endpoints()
 log = logging.getLogger(__name__)
 
@@ -22,19 +22,19 @@ def drift_init_extension(app, api, **kwargs):
     endpoints.init_app(app)
 
 
-class FlexMatchPatchArgs(Schema):
+class MatchmakingPatchArgs(Schema):
     latency_ms = fields.Float(required=True, description="Latency between client and the region he's measuring against.")
     region = fields.String(required=True, description="Which region the latency was measured against.")
 
-class FlexMatchPostArgs(Schema):
+class MatchmakingPostArgs(Schema):
     matchmaker = fields.String(required=True, description="Which matchmaker (configuration name) to issue the ticket for. ")
 
 @bp.route("/")
-class FlexMatchAPI(MethodView):
+class MatchmakingAPI(MethodView):
 
     VALID_REGIONS = {"eu-west-1"}
 
-    @bp.arguments(FlexMatchPatchArgs)
+    @bp.arguments(MatchmakingPatchArgs)
     def patch(self, args):
         """
         Add a freshly measured latency value to the player tally.
@@ -48,7 +48,7 @@ class FlexMatchAPI(MethodView):
         flexmatch.update_player_latency(player_id, region, latency)
         return flexmatch.get_player_latency_averages(player_id), http_client.OK
 
-    @bp.arguments(FlexMatchPostArgs)
+    @bp.arguments(MatchmakingPostArgs)
     def post(self, args):
         """
         Insert a matchmaking ticket for the requesting player or his party.
@@ -70,5 +70,5 @@ class FlexMatchAPI(MethodView):
 
 @endpoints.register
 def endpoint_info(*args):
-    return {"flexmatch": url_for("flexmatch.FlexMatchAPI", _external=True)}
+    return {"matchmaking": url_for("matchmaking.MatchmakingAPI", _external=True)}
 
