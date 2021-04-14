@@ -67,10 +67,10 @@ class MessagesTest(BaseCloudkitTest):
         self.assertIn("Hello", r["testqueue"][0]["payload"])
 
         # get all the messages for the player again and make sure we're receiving the same thing
-        self.assertEqual(self.get(messages_url).json(), r)
+        self.assertEqual(self.get(messages_url + "?messages_after=0").json(), r)
 
         # get the messages and this time clear them as well
-        r = self.get(messages_url + "?delete=true").json()
+        r = self.get(messages_url + "?messages_after=0&delete=true").json()
         self.assertIn("testqueue", r)
         self.assertEqual(len(r["testqueue"]), 1)
         self.assertIn("payload", r["testqueue"][0])
@@ -114,7 +114,7 @@ class MessagesTest(BaseCloudkitTest):
         self.assertEqual(len(js[otherqueue]), 2)
 
         # get 1 row and verify that it is the latest one
-        r = self.get(messages_url + "?rows=1")
+        r = self.get(messages_url + "?messages_after=0&rows=1")
         js = r.json()
         self.assertEqual(len(js), 1)
         self.assertNotIn(queue, js)
@@ -122,7 +122,7 @@ class MessagesTest(BaseCloudkitTest):
         self.assertEqual(js[otherqueue][0]["message_number"], top_message_number)
 
         # get 2 rows and verify that we have one from each queue
-        r = self.get(messages_url + "?rows=2")
+        r = self.get(messages_url + "?messages_after=0&rows=2")
         js = r.json()
         self.assertEqual(len(js), 2)
         self.assertEqual(len(js[queue]), 1)
@@ -150,7 +150,6 @@ class MessagesTest(BaseCloudkitTest):
         r = self.post(othermessagequeue_url, data=data)
         r = self.post(messagequeue_url, data=data)
         r = self.post(othermessagequeue_url, data=data)
-
         top_message_number = int(r.json()["message_number"])
         top_message_id = r.json()["message_id"]
 
@@ -167,7 +166,7 @@ class MessagesTest(BaseCloudkitTest):
         self.assertEqual(js[otherqueue][0]["message_id"], top_message_id)
 
         # if we get by a larger number we should get nothing
-        r = self.get(messages_url + "?messages_after=%s" % (top_message_number))
+        r = self.get(messages_url + "?messages_after=%s" % top_message_number)
         js = r.json()
         self.assertEqual(js, {})
 
@@ -228,3 +227,42 @@ class MessagesTest(BaseCloudkitTest):
         self.assertEqual(len(r.json()["testqueue"]), 1)
         self.assertIn("payload", r.json()["testqueue"][0])
         self.assertIn("Hello", r.json()["testqueue"][0]["payload"])
+
+
+    def test_last_seen_date_is_used_when_no_limitations_are_given(self):
+        player_receiver = self.make_player()
+        receiver_headers = self.headers
+
+        player_receiver_endpoint = self.endpoints["my_player"]
+        r = self.get(player_receiver_endpoint)
+        messagequeue_url_template = r.json()["messagequeue_url"]
+        messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
+        messages_url = r.json()["messages_url"]
+
+        # send a message from another player
+        player_sender = self.make_player()
+        sender_headers = self.headers
+        queue = "testqueue"
+        messagequeue_url = messagequeue_url_template.format(queue=queue)
+        first_message = {"message": {"First": "Message"}}
+        r = self.post(messagequeue_url, data=first_message)
+
+        # Switch to receiver and fetch 'all'
+        self.headers = receiver_headers
+        r = self.get(messages_url)
+        js = r.json()
+        self.assertEqual(len(js), 1)
+
+        # Switch back to sender and post a new message
+        self.headers = sender_headers
+        second_message = {"message": {"New": "Message"}}
+        r = self.post(messagequeue_url, data=second_message)
+
+        # switch to the receiver player again and fetch 'all' again; only new message should show up
+        #breakpoint()
+        self.headers = receiver_headers
+        r = self.get(messages_url)
+        js = r.json()
+        self.assertEqual(len(js), 1)
+        self.assertEqual(len(js[queue]), 1)
+        self.assertEqual(js[queue][0]["payload"], second_message["message"])

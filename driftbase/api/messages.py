@@ -67,34 +67,42 @@ def incr_message_number(exchange, exchange_id):
     return int(val)
 
 
-def fetch_messages(exchange, exchange_id, min_message_number=0, rows=None):
+def fetch_messages(exchange, exchange_id, min_message_number, rows=None):
     messages = []
     key = "messages:%s-%s" % (exchange, exchange_id)
     redis_key = g.redis.make_key(key)
-    seen_key = "messages:seen:%s-%s" % (exchange, exchange_id)
+    seen_key = "messages:seen-date:%s-%s" % (exchange, exchange_id)
     redis_seen_key = g.redis.make_key(seen_key)
     my_player_id = None
     if current_user:
         my_player_id = current_user["player_id"]
     i = 1
-
-    seen_message_number = g.redis.conn.get(redis_seen_key)
-    if min_message_number == 1 and seen_message_number:
-        min_message_number = int(seen_message_number)
+    if min_message_number is None:
+        last_fetched_message_date = g.redis.conn.get(redis_seen_key)
+        if last_fetched_message_date:
+            last_fetched_message_date = datetime.datetime.fromisoformat(last_fetched_message_date.decode("ascii"))
+        else:
+            last_fetched_message_date = utcnow() - datetime.timedelta(weeks=52 * 10)
+        min_message_number = 1
     else:
-        g.redis.conn.set(redis_seen_key, min_message_number)
-
+        last_fetched_message_date = None
+        min_message_number += 1
+    new_last_fetched_message_date = None
     curr_message_number = sys.maxsize
     while curr_message_number >= min_message_number:
         all_contents = g.redis.conn.lrange(redis_key, -i, -i)
         if not all_contents:
             break
         contents = all_contents[0]
+        i += 1
         message = json.loads(contents)
         curr_message_number = message["message_number"]
-        i += 1
+        message_date = datetime.datetime.fromisoformat(message["timestamp"][:-1])  # Remove the trailing 'Z' from the timestamp
+        if last_fetched_message_date and message_date <= last_fetched_message_date:
+            break
         if curr_message_number < min_message_number:
             break
+        new_last_fetched_message_date = message_date
         messages.append(message)
         log.info("Message %s ('%s') has been retrieved from queue '%s' in "
                  "exchange '%s-%s' by player %s",
@@ -109,6 +117,8 @@ def fetch_messages(exchange, exchange_id, min_message_number=0, rows=None):
     ret = collections.defaultdict(list)
     for m in messages[:rows]:
         ret[m["queue"]].append(m)
+    if new_last_fetched_message_date:
+        g.redis.conn.set(redis_seen_key, new_last_fetched_message_date.isoformat())
     return ret
 
 
@@ -149,7 +159,7 @@ class MessagesExchangeAPI(MethodView):
 
         args = self.get_args.parse_args()
         timeout = args.timeout or 0
-        min_message_number = int(args.messages_after or 0) + 1
+        min_message_number = args.messages_after
         rows = args.rows
         if rows:
             rows = int(rows)
@@ -194,6 +204,7 @@ class MessagesExchangeAPI(MethodView):
                     except Exception as e:
                         log.error("[%s/%s] Exception %s", my_player_id, exchange_full_name, repr(e))
                         yield json.dumps({})
+                        return
 
             return Response(stream_with_context(streamer()), mimetype="application/json")
         else:
