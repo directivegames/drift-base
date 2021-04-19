@@ -12,8 +12,8 @@ from six.moves import http_client
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
 
-from driftbase.models.db import Friendship, FriendInvite, CorePlayer
-from driftbase.schemas.friendships import InviteSchema, FriendRequestSchema
+from driftbase.models.db import Friendship, FriendInvite, CorePlayer, MatchPlayer, Match, Server
+from driftbase.schemas.friendships import InviteSchema, FriendRequestSchema, FriendshipResponseSchema
 
 DEFAULT_INVITE_EXPIRATION_TIME_SECONDS = 60 * 60 * 1
 
@@ -140,6 +140,37 @@ class FriendshipsAPI(MethodView):
 
 @bp.route('/<int:friendship_id>', endpoint='entry')
 class FriendshipAPI(MethodView):
+
+    @bp.response(http_client.OK, FriendshipResponseSchema)
+    def get(self, friendship_id):
+        """
+        Get info on a given friendship
+        """
+        requesting_player_id = current_user["player_id"]
+        friendship = g.db.query(Friendship).filter_by(id=friendship_id).first()
+        if friendship is None or requesting_player_id not in (friendship.player1_id, friendship.player2_id):
+            abort(http_client.FORBIDDEN, description="You are not friends")
+        if requesting_player_id == friendship.player1_id:
+            friend_player_id = friendship.player2_id
+        else:
+            friend_player_id = friendship.player1_id
+        battle_state = g.db.query(MatchPlayer).join(Match, Match.match_id == MatchPlayer.match_id).\
+            filter(MatchPlayer.player_id == friend_player_id, MatchPlayer.status == "active").first()
+        if battle_state:
+            # FIXME: update server table to indicate if server allows spectators ?
+            server_info = g.db.query(Server).filter(Server.server_id == battle_state.server_id).first()
+            # FIXME: Verify the URL form
+            spectate_url = f"{server_info.public_ip}:{server_info.port}?player_id={friend_player_id}&token={server_info.token}&SpectatorOnly=1"
+        else:
+            spectate_url = None
+            expected_keys = {"friendship_url", "friend_id", "friend_url", "spectate_url"}
+        ret = {
+            "friendship_url": url_for("friendships.entry", friendship_id=friendship.id, _external=True),
+            "friend_id": friend_player_id,
+            "friend_url": url_for("players.entry", player_id=friend_player_id, _external=True),
+            "spectate_url": spectate_url
+        }
+        return ret, http_client.OK
 
     def delete(self, friendship_id):
         """

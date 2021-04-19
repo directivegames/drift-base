@@ -1,7 +1,8 @@
+import marshmallow as ma
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from flask_marshmallow.fields import AbsoluteUrlFor
 from driftbase.models.db import FriendInvite
-from marshmallow import pre_dump, fields, post_dump
+from marshmallow import pre_dump, fields
 
 
 class InviteSchema(SQLAlchemyAutoSchema):
@@ -27,3 +28,8 @@ class InviteSchema(SQLAlchemyAutoSchema):
 class FriendRequestSchema(InviteSchema):
     accept_url = AbsoluteUrlFor("friendships.list", player_id='<issued_to_player_id>')
 
+class FriendshipResponseSchema(ma.Schema):
+    friendship_url = ma.fields.Url()
+    friend_id = ma.fields.Integer()
+    friend_url = ma.fields.Url()
+    spectate_url = ma.fields.Url()
