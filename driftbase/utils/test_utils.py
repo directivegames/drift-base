@@ -7,14 +7,15 @@ from drift.systesthelper import uuid_string, DriftBaseTestCase
 
 class BaseCloudkitTest(DriftBaseTestCase):
 
-    def make_player(self, username=None):
+    def make_player(self, username=None, player_name=None):
         username = username or uuid_string()
         self.auth(username=username)
         player_url = self.endpoints["my_player"]
         r = self.get(player_url)
-        player_name = "Player #%s" % self.player_id
-        self.patch(player_url, data={"name": player_name})
-
+        if player_name is None:
+            player_name = "Player #%s" % self.player_id
+        response = self.patch(player_url, data={"name": player_name}).json()
+        self.player_name = response["player_name"]
         # start by getting a client session (this should be in utils!)
         clients_url = self.endpoints["clients"]
         data = {
