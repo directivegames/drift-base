@@ -391,6 +391,7 @@ class FriendsTest(_BaseFriendsTest):
         # Create a friendship between battler and observer
         sender_id, receiver_id, result = self.create_friendship("Battler", "Observer")
         friendship_url = result["url"]
+
         # setup battleservers and such
         self.auth_service()
         # create a machine for the server to run on
@@ -398,7 +399,7 @@ class FriendsTest(_BaseFriendsTest):
                          "instance_type": "instance_type", "instance_id": "instance_id",
             "public_ip": "8.8.8.8",
         }
-        machine_response = self.post("/machines", data=machine_data, expected_status_code=http_client.CREATED).json()
+        machine_response = self.post(self.endpoints["machines"], data=machine_data, expected_status_code=http_client.CREATED).json()
         # create a server on the machine
         server_data = { "machine_id": machine_response["machine_id"], "version": "version", "command_line": "command_line",
             "command_line_custom": "command_line_custom", "pid": 666, "status": "active", "image_name": "image_name",
@@ -407,9 +408,9 @@ class FriendsTest(_BaseFriendsTest):
             "public_ip": "8.8.8.8",
             "port": 50000,
         }
-        server_response = self.post("/servers", data=server_data, expected_status_code=http_client.CREATED).json()
+        server_response = self.post(self.endpoints["servers"], data=server_data, expected_status_code=http_client.CREATED).json()
         # create a match on the server
-        match_response = self.post("/matches", data={
+        match_response = self.post(self.endpoints["matches"], data={
             "server_id": server_response["server_id"],
             "status": "idle",
             "map_name": "map_name",
@@ -417,7 +418,7 @@ class FriendsTest(_BaseFriendsTest):
             "max_players": 2,
         }, expected_status_code=http_client.CREATED).json()
         # Put Battler in a match
-        battler_response = self.post(f"/matches/{match_response['match_id']}/players/", data={
+        battler_response = self.post(f"{self.endpoints['matches']}/{match_response['match_id']}/players/", data={
             "player_id": sender_id,
             "team_id": 0
         }, expected_status_code=http_client.CREATED)
