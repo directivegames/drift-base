@@ -22,7 +22,8 @@ AWS_REGION = "eu-west-1"
 
 log = logging.getLogger(__name__)
 
-###  Latency reporting  ###
+
+# Latency reporting
 
 def update_player_latency(player_id, region, latency_ms):
     region_key = _get_player_latency_key(player_id) + region
@@ -39,12 +40,12 @@ def get_player_latency_averages(player_id):
             pipe.lrange(player_latency_key + region, 0, NUM_VALUES_FOR_LATENCY_AVERAGE)
         results = pipe.execute()
     return {
-        region: int( sum(float(l) for l in latencies) / min(NUM_VALUES_FOR_LATENCY_AVERAGE, len(latencies)) ) # FIXME: default value if no values have been reported?
+        region: int( sum(float(l) for l in latencies) / min(NUM_VALUES_FOR_LATENCY_AVERAGE, len(latencies)))  # FIXME: default value if no values have been reported?
         for region, latencies in zip(regions, results)
     }
 
 
-###  Matchmaking  ###
+#  Matchmaking
 
 def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
     with _LockedTicketKey(_get_player_ticket_key(player_id)) as matchmaker:
@@ -55,14 +56,15 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
         else:
             member_ids = [player_id]
 
-        if matchmaker.ticket: # Existing ticket found
-            # TODO: Check if I need to add this player to the ticket.
+        if matchmaker.ticket:  # Existing ticket found
+            # TODO: Check if I need to add player_id to the ticket. This is the use case where someone accepts a party
+            #  invite after matchmaking started.
             return matchmaker.ticket
 
-        gamelift_client = boto3.client("gamelift", region_name=AWS_REGION) # FIXME: How do I deal with aws credentials ?
+        gamelift_client = boto3.client("gamelift", region_name=AWS_REGION)  # FIXME: How do I deal with aws credentials ?
         response = gamelift_client.start_matchmaking(
-            ConfigurationName = matchmaking_configuration,
-            Players = [
+            ConfigurationName=matchmaking_configuration,
+            Players=[
                 {
                     "PlayerId": str(member_id),
                     "PlayerAttributes": _get_player_attributes(member_id),
@@ -84,7 +86,7 @@ def get_player_ticket(player_id):
     return g.redis.conn.hgetall(_get_player_ticket_key(player_id))
 
 
-## Helpers ##
+# Helpers
 
 def _get_player_regions(player_id):
     """ Return a list of regions for whom 'player_id' has reported latency values. """
@@ -100,7 +102,7 @@ def _get_player_ticket_key(player_id):
     return g.redis.make_key(f"player:{player_id}:flexmatch:")
 
 def _get_player_attributes(player_id):
-    #FIXME: Placeholder for extra matchmaking attribute gathering per player
+    # FIXME: Placeholder for extra matchmaking attribute gathering per player
     return {"skill": {"N": 50}}
 
 def _post_matchmaking_event_to_members(receiving_player_ids, event, expiry=30):
@@ -119,7 +121,7 @@ class _LockedTicketKey(object):
     """
     Context manager for synchronizing creation and modification of matchmaking tickets.
     """
-    MAX_LOCK_TIME_SECONDS = 30 # Avoid stale locking by defining a maximum time a lock can be held. This is probably excessive though...
+    MAX_LOCK_TIME_SECONDS = 30  # Avoid stale locking by defining a maximum time a lock can be held. This is probably excessive though...
 
     def __init__(self, key):
         self._key = key
@@ -152,16 +154,16 @@ class _LockedTicketKey(object):
                 time.sleep(0.1) # Kind of miss stackless channels for 'block-until-woken' :)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        lock_sentinel_value = int(self._redis.conn.get(self._lock_key) or 0) # or 0 in case we expired and someone else deleted the key
+        lock_sentinel_value = int(self._redis.conn.get(self._lock_key) or 0)  # or 0 in case we expired and someone else deleted the key
         if lock_sentinel_value != self._lock_sentinel_value:
             # If the sentinel value differs, we held the lock for too long and someone else is now holding the lock,
             # so we'll bail without updating anything
             return
         with self._redis.conn.pipeline() as pipe:
             if exc_type is None and self._modified is True:
-                pipe.delete(self._key) # Always update the ticket wholesale, i.e. don't leave stale fields behind.
+                pipe.delete(self._key)  # Always update the ticket wholesale, i.e. don't leave stale fields behind.
                 pipe.set(self._key, json.dumps(self._ticket))
-            pipe.delete(self._lock_key) # Release the lock
+            pipe.delete(self._lock_key)  # Release the lock
             pipe.execute()
 
 
