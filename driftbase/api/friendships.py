@@ -154,11 +154,13 @@ class FriendshipAPI(MethodView):
             friend_player_id = friendship.player2_id
         else:
             friend_player_id = friendship.player1_id
-        battle_state = g.db.query(MatchPlayer).join(Match, Match.match_id == MatchPlayer.match_id).\
+        
+        battle_state = g.db.query(MatchPlayer, Match).join(Match, Match.match_id == MatchPlayer.match_id).\
             filter(MatchPlayer.player_id == friend_player_id, MatchPlayer.status == "active").first()
         if battle_state:
             # FIXME: update server table to indicate if server allows spectators ?
-            server_info = g.db.query(Server).filter(Server.server_id == battle_state.server_id).first()
+            player, match = battle_state
+            server_info = g.db.query(Server).filter(Server.server_id == match.server_id).first()
             # FIXME: Verify the URL form
             spectate_url = f"{server_info.public_ip}:{server_info.port}?player_id={friend_player_id}&token={server_info.token}&SpectatorOnly=1"
         else:

@@ -386,3 +386,46 @@ class FriendsTest(_BaseFriendsTest):
         response = self.get(friendship_url).json()
         expected_keys = {"friendship_url", "friend_id", "friend_url", "spectate_url"}
         self.assertSetEqual(expected_keys, set(response.keys()))
+
+    def test_friendship_spectate_url(self):
+        # Create a friendship between battler and observer
+        sender_id, receiver_id, result = self.create_friendship("Battler", "Observer")
+        friendship_url = result["url"]
+        # setup battleservers and such
+        self.auth_service()
+        # create a machine for the server to run on
+        machine_data = { "realm": "aws", "instance_name": "awsinstance", "placement": "placement",
+                         "instance_type": "instance_type", "instance_id": "instance_id",
+            "public_ip": "8.8.8.8",
+        }
+        machine_response = self.post("/machines", data=machine_data, expected_status_code=http_client.CREATED).json()
+        # create a server on the machine
+        server_data = { "machine_id": machine_response["machine_id"], "version": "version", "command_line": "command_line",
+            "command_line_custom": "command_line_custom", "pid": 666, "status": "active", "image_name": "image_name",
+            "branch": "develop", "commit_id": "commit_id", "process_info": {"process_info": "yes"},
+            "details": {"details": "yes"}, "ref": "test/testing",
+            "public_ip": "8.8.8.8",
+            "port": 50000,
+        }
+        server_response = self.post("/servers", data=server_data, expected_status_code=http_client.CREATED).json()
+        # create a match on the server
+        match_response = self.post("/matches", data={
+            "server_id": server_response["server_id"],
+            "status": "idle",
+            "map_name": "map_name",
+            "game_mode": "game_mode",
+            "max_players": 2,
+        }, expected_status_code=http_client.CREATED).json()
+        # Put Battler in a match
+        battler_response = self.post(f"/matches/{match_response['match_id']}/players/", data={
+            "player_id": sender_id,
+            "team_id": 0
+        }, expected_status_code=http_client.CREATED)
+        # log in as observer and fetch the friendship info
+        self.auth("Observer")
+        friendship_response = self.get(friendship_url).json()
+        spectate_url = friendship_response["spectate_url"]
+        self.assertTrue(spectate_url.startswith("%s:%s?" % (server_data["public_ip"], server_data["port"])))
+        self.assertIn(f"player_id={sender_id}", spectate_url)
+        self.assertIn("SpectatorOnly=1", spectate_url)
+        self.assertIn("token=", spectate_url)
