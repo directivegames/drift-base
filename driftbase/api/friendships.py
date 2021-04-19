@@ -154,7 +154,7 @@ class FriendshipAPI(MethodView):
             friend_player_id = friendship.player2_id
         else:
             friend_player_id = friendship.player1_id
-        
+
         battle_state = g.db.query(MatchPlayer, Match).join(Match, Match.match_id == MatchPlayer.match_id).\
             filter(MatchPlayer.player_id == friend_player_id, MatchPlayer.status == "active").first()
         if battle_state:
@@ -165,7 +165,6 @@ class FriendshipAPI(MethodView):
             spectate_url = f"{server_info.public_ip}:{server_info.port}?player_id={friend_player_id}&token={server_info.token}&SpectatorOnly=1"
         else:
             spectate_url = None
-            expected_keys = {"friendship_url", "friend_id", "friend_url", "spectate_url"}
         ret = {
             "friendship_url": url_for("friendships.entry", friendship_id=friendship.id, _external=True),
             "friend_id": friend_player_id,
