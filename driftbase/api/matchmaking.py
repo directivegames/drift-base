@@ -32,8 +32,6 @@ class MatchmakingPostArgs(Schema):
 @bp.route("/")
 class MatchmakingAPI(MethodView):
 
-    VALID_REGIONS = {"eu-west-1"}
-
     @bp.arguments(MatchmakingPatchArgs)
     def patch(self, args):
         """
@@ -43,8 +41,8 @@ class MatchmakingAPI(MethodView):
         player_id = current_user["player_id"]
         latency = args.get("latency_ms")
         region = args.get("region")
-        if None in (latency, region) or region not in self.VALID_REGIONS or not isinstance(latency, (int, float)):
-            abort(http_client.BAD_REQUEST) # FIXME: more descriptive error would be nice
+        if None in (latency, region) or region not in flexmatch.VALID_REGIONS or not isinstance(latency, (int, float)):
+            abort(http_client.BAD_REQUEST, message="Invalid or missing arguments")
         flexmatch.update_player_latency(player_id, region, latency)
         return flexmatch.get_player_latency_averages(player_id), http_client.OK
 
@@ -52,13 +50,13 @@ class MatchmakingAPI(MethodView):
     def post(self, args):
         """
         Insert a matchmaking ticket for the requesting player or his party.
-        Returns a region->avg_latency mapping.
+        Returns a ticket.
         """
         try:
             ticket = flexmatch.upsert_flexmatch_ticket(current_user["player_id"], args.get("matchmaker"))
             return ticket, http_client.OK
         except flexmatch.GameliftClientException as e:
-            log.error("Inserting/updating matchmaking ticket for player {player} failed: Gamelift response:\n{response}".format(player=current_user["player_id"], response=str(e.debugs)))
+            log.error(f"Inserting/updating matchmaking ticket for player {current_user['player_id']} failed: Gamelift response:\n{e.debugs}")
             return {"error": e.msg}, http_client.INTERNAL_SERVER_ERROR
 
     def get(self):

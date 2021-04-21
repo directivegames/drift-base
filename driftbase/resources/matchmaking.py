@@ -6,6 +6,8 @@ import logging
 
 log = logging.getLogger(__name__)
 
+TIER_DEFAULTS = {"aws_gamelift_role": 4}
+
 def drift_init_extension(app, **kwargs):
     pass
 

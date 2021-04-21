@@ -1,5 +1,4 @@
 
-import boto3
 import random
 import sys
 import time
@@ -19,9 +18,9 @@ REDIS_TTL = 1800
 #  To add to confusion, you can specify a configuration WITH_QUEUE and not specify any queue at all and that's a valid
 #  configuration
 AWS_REGION = "eu-west-1"
+VALID_REGIONS = {"eu-west-1"}
 
 log = logging.getLogger(__name__)
-
 
 # Latency reporting
 
@@ -40,7 +39,7 @@ def get_player_latency_averages(player_id):
             pipe.lrange(player_latency_key + region, 0, NUM_VALUES_FOR_LATENCY_AVERAGE)
         results = pipe.execute()
     return {
-        region: int( sum(float(l) for l in latencies) / min(NUM_VALUES_FOR_LATENCY_AVERAGE, len(latencies)))  # FIXME: default value if no values have been reported?
+        region: int(sum(float(l) for l in latencies) / min(NUM_VALUES_FOR_LATENCY_AVERAGE, len(latencies)))  # FIXME: return default values if no values have been reported?
         for region, latencies in zip(regions, results)
     }
 
@@ -61,7 +60,7 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
             #  invite after matchmaking started.
             return matchmaker.ticket
 
-        gamelift_client = boto3.client("gamelift", region_name=AWS_REGION)  # FIXME: How do I deal with aws credentials ?
+        gamelift_client = GameLiftRegionClient(AWS_REGION)
         response = gamelift_client.start_matchmaking(
             ConfigurationName=matchmaking_configuration,
             Players=[
@@ -115,6 +114,34 @@ def _post_matchmaking_event_to_members(receiving_player_ids, event, expiry=30):
     payload = {"event": event}
     for receiver_id in receiving_player_ids:
         _add_message("players", receiver_id, "matchmaking", payload, expiry)
+
+def _get_gamelift_role():
+    if g.conf.tenant:
+        return g.conf.tenant.get("gamelift", {}).get("assume_role", "")
+    return ""
+
+class GameLiftRegionClient(object):
+    __gamelift_clients_by_region = {}
+    __gamelift_sessions_by_region = {}
+
+    def __init__(self, region):
+        self.region = region
+        client = self.__class__.__gamelift_clients_by_region.get(region)
+        if client is None:
+            session = self.__class__.__gamelift_sessions_by_region.get(region)
+            if session is None:
+                import boto3
+                session = boto3.Session(region_name=self.region)
+                role_to_assume = _get_gamelift_role()
+                if role_to_assume:
+                    from aws_assume_role_lib import assume_role
+                    session = assume_role(session, role_to_assume)
+                self.__class__.__gamelift_sessions_by_region[region] = session
+            client = session.client("gamelift")
+            self.__class__.__gamelift_clients_by_region[region] = client
+
+    def __getattr__(self, item):
+        return getattr(self.__class__.__gamelift_clients_by_region[self.region], item)
 
 
 class _LockedTicketKey(object):
