@@ -106,7 +106,7 @@ def get_player_party(player_id):
 
 
 def get_party_members(party_id):
-    scoped_party_players_key = make_party_players_key(int(party_id))
+    scoped_party_players_key = make_party_players_key(party_id)
     return [int(member) for member in g.redis.conn.smembers(scoped_party_players_key)]
 
 
