@@ -3,9 +3,11 @@ import random
 import sys
 import time
 import logging
-
+import boto3
 import json
+from botocore.exceptions import ClientError, ParamValidationError
 from flask import g
+from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.api.messages import _add_message
 
@@ -61,19 +63,22 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
             return matchmaker.ticket
 
         gamelift_client = GameLiftRegionClient(AWS_REGION)
-        response = gamelift_client.start_matchmaking(
-            ConfigurationName=matchmaking_configuration,
-            Players=[
-                {
-                    "PlayerId": str(member_id),
-                    "PlayerAttributes": _get_player_attributes(member_id),
-                    "LatencyInMs": get_player_latency_averages(member_id)
-                }
-                for member_id in member_ids
-            ],
-        )
-        if "MatchmakingTicket" not in response:
-            raise GameliftClientException("Unable to start matchmaking", response)
+        try:
+            response = gamelift_client.start_matchmaking(
+                ConfigurationName=matchmaking_configuration,
+                Players=[
+                    {
+                        "PlayerId": str(member_id),
+                        "PlayerAttributes": _get_player_attributes(member_id),
+                        "LatencyInMs": get_player_latency_averages(member_id)
+                    }
+                    for member_id in member_ids
+                ],
+            )
+        except ParamValidationError as e:
+            raise GameliftClientException("Invalid parameters to request", str(e))
+        except ClientError as e:
+            raise GameliftClientException("Failed to start matchmaking", str(e))
 
         # FIXME: finalize and encapsulate redis object format for storage, currently just storing the ticket as is.
         matchmaker.ticket = response["MatchmakingTicket"]
@@ -81,8 +86,22 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
         _post_matchmaking_event_to_members(member_ids, "StartedMatchMaking")
         return matchmaker.ticket
 
+def cancel_player_ticket(player_id):
+    with _LockedTicketKey(_get_player_ticket_key(player_id)) as matchmaker:
+        ticket = matchmaker.ticket
+        if not ticket:
+            return
+        gamelift_client = GameLiftRegionClient(AWS_REGION)
+        try:
+            reponse = gamelift_client.stop_matchmaking(TicketId=ticket["TicketId"])
+        except ClientError as e:
+            raise GameliftClientException("Failed to cancel matchmaking ticket", str(e))
+        matchmaker.ticket = None
+        return ticket
+
 def get_player_ticket(player_id):
-    return g.redis.conn.hgetall(_get_player_ticket_key(player_id))
+    with _LockedTicketKey(_get_player_ticket_key(player_id)) as t:
+        return t.ticket
 
 
 # Helpers
@@ -120,6 +139,7 @@ def _get_gamelift_role():
         return g.conf.tenant.get("gamelift", {}).get("assume_role", "")
     return ""
 
+
 class GameLiftRegionClient(object):
     __gamelift_clients_by_region = {}
     __gamelift_sessions_by_region = {}
@@ -130,11 +150,9 @@ class GameLiftRegionClient(object):
         if client is None:
             session = self.__class__.__gamelift_sessions_by_region.get(region)
             if session is None:
-                import boto3
                 session = boto3.Session(region_name=self.region)
                 role_to_assume = _get_gamelift_role()
                 if role_to_assume:
-                    from aws_assume_role_lib import assume_role
                     session = assume_role(session, role_to_assume)
                 self.__class__.__gamelift_sessions_by_region[region] = session
             client = session.client("gamelift")
@@ -189,7 +207,8 @@ class _LockedTicketKey(object):
         with self._redis.conn.pipeline() as pipe:
             if exc_type is None and self._modified is True:
                 pipe.delete(self._key)  # Always update the ticket wholesale, i.e. don't leave stale fields behind.
-                pipe.set(self._key, json.dumps(self._ticket))
+                if self._ticket:
+                    pipe.set(self._key, json.dumps(self._ticket))
             pipe.delete(self._lock_key)  # Release the lock
             pipe.execute()
 
