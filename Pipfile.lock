@@ -48,6 +48,14 @@
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
             "version": "==21.2.0"
         },
+        "aws-assume-role-lib": {
+            "hashes": [
+                "sha256:a99257db9cd35e5073f027e1841887616765ab751f65b9b1637a42d6510cf5e5",
+                "sha256:c369d2f858ae09948d84eab8b451c17d008febb164ef7356b7c20de5f9f99d61"
+            ],
+            "index": "pypi",
+            "version": "==1.3.0"
+        },
         "blinker": {
             "hashes": [
                 "sha256:471aee25f3992bd325afa3772f1063dbdbbca947a041b8b89466dc00d606f8b6"

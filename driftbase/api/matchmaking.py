@@ -66,6 +66,19 @@ class MatchmakingAPI(MethodView):
         ticket = flexmatch.get_player_ticket(current_user["player_id"])
         return ticket or {}, http_client.OK
 
+    def delete(self):
+        """
+        Delete the currently active matchmaking ticket for the requesting player or his party.
+        """
+        try:
+            deleted_ticket = flexmatch.cancel_player_ticket(current_user["player_id"])
+            if deleted_ticket is None:
+                return {}, http_client.NOT_FOUND
+            return {}, http_client.NO_CONTENT
+        except flexmatch.GameliftClientException as e:
+            log.error(f"Cancelling matchmaking ticket for player {current_user['player_id']} failed: Gamelift response:\n{e.debugs}")
+            return {"error": e.msg}, http_client.INTERNAL_SERVER_ERROR
+
 @endpoints.register
 def endpoint_info(*args):
     return {"matchmaking": url_for("matchmaking.MatchmakingAPI", _external=True)}
