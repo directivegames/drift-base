@@ -53,7 +53,7 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
         # Generate a list of players relevant to the request; this is the list of online players in the party if the player belongs to one, otherwise the list is just the player
         player_party_id = get_player_party(player_id)
         if player_party_id:
-            member_ids = get_party_members(player_party_id)
+            member_ids = get_party_members(int(player_party_id))
         else:
             member_ids = [player_id]
 
