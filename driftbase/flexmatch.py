@@ -49,18 +49,14 @@ def get_player_latency_averages(player_id):
 #  Matchmaking
 
 def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
-    with _LockedTicketKey(_get_player_ticket_key(player_id)) as matchmaker:
+    with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
         # Generate a list of players relevant to the request; this is the list of online players in the party if the player belongs to one, otherwise the list is just the player
-        player_party_id = get_player_party(player_id)
-        if player_party_id:
-            member_ids = get_party_members(int(player_party_id))
-        else:
-            member_ids = [player_id]
+        member_ids = _get_player_party_members(player_id)
 
-        if matchmaker.ticket:  # Existing ticket found
+        if ticket_lock.ticket:  # Existing ticket found
             # TODO: Check if I need to add player_id to the ticket. This is the use case where someone accepts a party
             #  invite after matchmaking started.
-            return matchmaker.ticket
+            return ticket_lock.ticket
 
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:
@@ -81,14 +77,14 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
             raise GameliftClientException("Failed to start matchmaking", str(e))
 
         # FIXME: finalize and encapsulate redis object format for storage, currently just storing the ticket as is.
-        matchmaker.ticket = response["MatchmakingTicket"]
+        ticket_lock.ticket = response["MatchmakingTicket"]
 
         _post_matchmaking_event_to_members(member_ids, "StartedMatchMaking")
-        return matchmaker.ticket
+        return ticket_lock.ticket
 
 def cancel_player_ticket(player_id):
-    with _LockedTicketKey(_get_player_ticket_key(player_id)) as matchmaker:
-        ticket = matchmaker.ticket
+    with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
+        ticket = ticket_lock.ticket
         if not ticket:
             return
         gamelift_client = GameLiftRegionClient(AWS_REGION)
@@ -96,12 +92,13 @@ def cancel_player_ticket(player_id):
             reponse = gamelift_client.stop_matchmaking(TicketId=ticket["TicketId"])
         except ClientError as e:
             raise GameliftClientException("Failed to cancel matchmaking ticket", str(e))
-        matchmaker.ticket = None
+        ticket_lock.ticket = None
+        _post_matchmaking_event_to_members(_get_player_party_members(player_id), "StoppedMatchMaking")
         return ticket
 
 def get_player_ticket(player_id):
-    with _LockedTicketKey(_get_player_ticket_key(player_id)) as t:
-        return t.ticket
+    with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
+        return ticket_lock.ticket
 
 
 # Helpers
@@ -118,6 +115,15 @@ def _get_player_ticket_key(player_id):
     if player_party_id is not None:
         return g.redis.make_key(f"party:{player_party_id}:flexmatch:")
     return g.redis.make_key(f"player:{player_id}:flexmatch:")
+
+def _get_player_party_members(player_id):
+    """ Return the full list of players who share a party with 'player_id', including 'player_id'. If 'player_id' isn't
+    in a party, the returned list will contain only 'player_id'"""
+    party_id = get_player_party(player_id)
+    if party_id:
+        return get_party_members(int(party_id))
+    else:
+        return [player_id]
 
 def _get_player_attributes(player_id):
     # FIXME: Placeholder for extra matchmaking attribute gathering per player
@@ -162,7 +168,7 @@ class GameLiftRegionClient(object):
         return getattr(self.__class__.__gamelift_clients_by_region[self.region], item)
 
 
-class _LockedTicketKey(object):
+class _LockedTicket(object):
     """
     Context manager for synchronizing creation and modification of matchmaking tickets.
     """
