@@ -162,6 +162,35 @@ class FlexMatchTest(BaseCloudkitTest):
             self.auth(username=host_name)
             self.delete(matchmaking_url, expected_status_code=http_client.NO_CONTENT)
 
+    def test_party_members_get_notified_if_ticket_is_cancelled(self):
+        # Create a party of 2
+        member_name = self.make_player()
+        member_id = self.player_id
+        host_name = self.make_player()
+        host_id = self.player_id
+        invite = self.post(self.endpoints["party_invites"], data={'player_id': member_id},
+                           expected_status_code=http_client.CREATED).json()
+        # Accept the invite
+        self.auth(username=member_name)
+        notification, message_number = self.get_player_notification("party_notification", "invite")
+        self.patch(notification['invite_url'], data={'inviter_id': host_id}, expected_status_code=http_client.OK).json()
+        # Let member start matchmaking, host should be included in the ticket
+        matchmaking_url = self.endpoints["matchmaking"]
+        with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
+            response = self.post(matchmaking_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
+            # host then cancels
+            self.auth(username=host_name)
+            self.delete(matchmaking_url, expected_status_code=http_client.NO_CONTENT)
+            # host should have a notification
+            notification, _ = self.get_player_notification("matchmaking", "StoppedMatchMaking")
+            self.assertIsInstance(notification, dict)
+            self.assertTrue(notification["event"] == "StoppedMatchMaking")
+            # member should have a notification
+            self.auth(username=member_name)
+            notification, _ = self.get_player_notification("matchmaking", "StoppedMatchMaking")
+            self.assertIsInstance(notification, dict)
+            self.assertTrue(notification["event"] == "StoppedMatchMaking")
+
 
 class MockGameLiftClient(object):
     def __init__(self, *args, **kwargs):
