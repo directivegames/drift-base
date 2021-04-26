@@ -87,6 +87,8 @@ def cancel_player_ticket(player_id):
         ticket = ticket_lock.ticket
         if not ticket:
             return
+        if ticket["Status"] in ("COMPLETED", "PLACING"):
+            return  # Don't allow cancelling if we've put you in a match already
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:
             reponse = gamelift_client.stop_matchmaking(TicketId=ticket["TicketId"])
@@ -122,8 +124,7 @@ def _get_player_party_members(player_id):
     party_id = get_player_party(player_id)
     if party_id:
         return get_party_members(int(party_id))
-    else:
-        return [player_id]
+    return [player_id]
 
 def _get_player_attributes(player_id):
     # FIXME: Placeholder for extra matchmaking attribute gathering per player
