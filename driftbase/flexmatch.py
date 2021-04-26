@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError, ParamValidationError
 from flask import g
 from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
-from driftbase.api.messages import _add_message
+from driftbase.api.messages import post_message
 
 
 NUM_VALUES_FOR_LATENCY_AVERAGE = 3
@@ -138,7 +138,7 @@ def _post_matchmaking_event_to_members(receiving_player_ids, event, expiry=30):
         receiving_player_ids = [receiving_player_ids]
     payload = {"event": event}
     for receiver_id in receiving_player_ids:
-        _add_message("players", receiver_id, "matchmaking", payload, expiry)
+        post_message("players", receiver_id, "matchmaking", payload, expiry)
 
 def _get_gamelift_role():
     if g.conf.tenant:
