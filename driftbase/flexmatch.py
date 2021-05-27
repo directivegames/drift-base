@@ -202,8 +202,8 @@ class _LockedTicket(object):
                 if ticket is not None:
                     self._ticket = json.loads(ticket)
                 return self
-            else: # someone else holds the lock for this key
-                time.sleep(0.1) # Kind of miss stackless channels for 'block-until-woken' :)
+            else:  # someone else holds the lock for this key
+                time.sleep(0.1)  # Kind of miss stackless channels for 'block-until-woken' :)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         lock_sentinel_value = int(self._redis.conn.get(self._lock_key) or 0)  # or 0 in case we expired and someone else deleted the key
