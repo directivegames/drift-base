@@ -28,7 +28,7 @@
         "driftbase.api.machinegroups",
         "driftbase.api.matchqueue",
         "driftbase.api.messages",
-        "driftbase.api.matchmaking",
+        "driftbase.api.flexmatch",
 
         "drift.core.apps.schemas",
         "drift.core.apps.provision",
@@ -47,7 +47,7 @@
         "driftbase.resources.staticdata",
         "driftbase.resources.gameserver",
         "driftbase.resources.parties",
-        "driftbase.resources.matchmaking",
+        "driftbase.resources.flexmatch",
         "driftbase.auth"
     ],
     "resource_attributes": {
