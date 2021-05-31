@@ -268,7 +268,7 @@ def post_message(exchange, exchange_id, queue, payload, expire_seconds=None):
     message = {
         "timestamp": timestamp.isoformat() + "Z",
         "expires": expires.isoformat() + "Z",
-        "sender_id": current_user["player_id"],
+        "sender_id": current_user.get("player_id", -1),
         "message_id": message_id,
         "message_number": message_number,
         "payload": payload,

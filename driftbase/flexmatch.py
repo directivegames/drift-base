@@ -5,6 +5,7 @@ import time
 import logging
 import boto3
 import json
+from collections import defaultdict
 from botocore.exceptions import ClientError, ParamValidationError
 from flask import g
 from aws_assume_role_lib import assume_role
@@ -102,6 +103,18 @@ def get_player_ticket(player_id):
     with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
         return ticket_lock.ticket
 
+def process_flexmatch_event(flexmatch_event):
+    event = _get_event_details(flexmatch_event)
+    event_type = event.get("type", None)
+    if event_type is None:
+        raise RuntimeError("No event type found")
+    if event_type == "MatchmakingSearching":
+        return _process_searching_event(event)
+    if event_type == "PotentialMatchCreated":
+        return _process_potential_match_event(event)
+    raise RuntimeError(f"Unknown event '{event_type}'")
+
+
 
 # Helpers
 
@@ -130,14 +143,17 @@ def _get_player_attributes(player_id):
     # FIXME: Placeholder for extra matchmaking attribute gathering per player
     return {"skill": {"N": 50}}
 
-def _post_matchmaking_event_to_members(receiving_player_ids, event, expiry=30):
+def _post_matchmaking_event_to_members(receiving_player_ids, event, event_data=None, expiry=30):
     """ Insert a event into the 'matchmaking' queue of the 'players' exchange. """
     if not receiving_player_ids:
         log.warning(f"Empty receiver in matchmaking event {event} message")
         return
     if not isinstance(receiving_player_ids, (set, list)):
         receiving_player_ids = [receiving_player_ids]
-    payload = {"event": event}
+    payload = {
+        "event": event,
+        "data": event_data or {}
+    }
     for receiver_id in receiving_player_ids:
         post_message("players", receiver_id, "matchmaking", payload, expiry)
 
@@ -146,6 +162,86 @@ def _get_gamelift_role():
         return g.conf.tenant.get("gamelift", {}).get("assume_role", "")
     return ""
 
+def _get_event_details(event):
+    if event.get("detail-type", None) != "GameLift Matchmaking Event":
+        raise RuntimeError("Event is not a GameLift Matchmaking Event!")
+    details = event.get("detail", None)
+    if details is None:
+        raise RuntimeError("Event is missing details!")
+    return details
+
+def _process_searching_event(event):
+    log.info(f"Processing 'MatchmakingSearching' event:{event}")
+    tickets = event["tickets"]
+    if len(tickets) == 0:
+        raise RuntimeError("No tickets!")
+    updated_tickets = set()
+    for ticket in tickets:
+        for player in ticket["players"]:
+            player_id = int(player["playerId"])
+            ticket_key = _get_player_ticket_key(player_id)
+            if ticket_key in updated_tickets:
+                log.info(f"Skipping update on ticket {ticket['ticketId']} as it resolves to previously updated ticket key {ticket_key}")
+                continue
+            with _LockedTicket(ticket_key) as ticket_lock:
+                player_ticket = ticket_lock.ticket
+                log.info(f"Potentially updating ticket {ticket['ticketId']} for player key {ticket_key}, currently in state {player_ticket['Status']}")
+                if player_ticket.get("PlayerSessionId", None) is not None:
+                    # If we've recorded a session, then the player is in a match already and this is almost certainly a backfill ticket searching
+                    log.info(f"Player {player_id} has a session already. Not updating {ticket['ticketId']}")
+                    continue
+                # Otherwise, we fully expect ticketIds to match up
+                ticket_id = ticket["ticketId"]
+                if ticket_id != player_ticket["TicketId"]:
+                    log.error(f"TicketId mismatch: Player {player_id} initiated matchmaking with ticket {player_ticket['TicketId']}, but event has him assigned to ticket {ticket_id}.")
+                    log.error(f" Redis has his ticket in state {player_ticket['Status']}. Not updating.")
+                    continue
+                player_ticket["Status"] = "MatchmakingSearching"
+                ticket_lock.ticket = player_ticket
+                log.info(f"Updated ticket {ticket['ticketId']} for player key {ticket_key} to 'MatchmakingSearching'")
+            updated_tickets.add(ticket_key)
+
+def _process_potential_match_event(event):
+    # FIXME: Not handling 'acceptanceRequired' atm.
+    log.info(f"Processing 'PotentialMatchCreated' event:{event}")
+    tickets = event["tickets"]
+    if len(tickets) == 0:
+        raise RuntimeError("No tickets!")
+    player_ids_to_notify = set()
+    players_by_team = defaultdict(set)
+    for ticket in tickets:
+        for player in ticket["players"]:
+            player_id = int(player["playerId"])
+            ticket_key = _get_player_ticket_key(player_id)
+            with _LockedTicket(ticket_key) as ticket_lock:
+                player_ticket = ticket_lock.ticket
+                log.info(f"Potentially updating ticket {ticket['ticketId']} for player key {ticket_key}, currently in state {player_ticket['Status']}")
+                if player_ticket.get("PlayerSessionId", None) is not None:
+                    # If we've recorded a session, then the player is in a match already and this is almost certainly a backfill ticket searching
+                    log.info(f"Player {player_id} has a session already. Not updating {ticket['ticketId']}")
+                    continue
+                # Otherwise, we fully expect ticketIds to match up
+                ticket_id = ticket["ticketId"]
+                if ticket_id != player_ticket["TicketId"]:
+                    log.error(f"TicketId mismatch: Player {player_id} initiated matchmaking with ticket {player_ticket['TicketId']}, but event has him assigned to ticket {ticket_id}.")
+                    log.error(f" Redis has his ticket in state {player_ticket['Status']}. Not updating.")
+                    continue
+                if player_ticket["Status"] not in ("QUEUED", "MatchmakingSearching", "PotentialMatchCreated"):
+                    log.warning(f"Players {player_id} ticket {player_ticket['TicketId']} is in state {player_ticket['Status']}. Transition to 'PotentialMatchCreated' is invalid. Not updating.")
+                    continue
+                player_ticket["Status"] = "PotentialMatchCreated"
+                for ticket_player in player_ticket["Players"]:
+                    if player_id == int(ticket_player["PlayerId"]):
+                        player_team = player["team"]
+                        ticket_player["Team"] = player_team
+                        players_by_team[player_team].add(player_id)
+                        log.info(f"Player {player_id} assigned to team {player_team} in ticket {ticket['ticketId']}.")
+                        break
+                ticket_lock.ticket = player_ticket
+                log.info(f"Updated ticket {ticket['ticketId']} for player key {ticket_key} to 'PotentialMatchCreated'")
+            player_ids_to_notify.add(player_id)
+    message_data = {team: list(players) for team, players in players_by_team.items()}
+    _post_matchmaking_event_to_members(player_ids_to_notify, 'PotentialMatchCreated', event_data={team: list(players) for team, players in players_by_team.items()})
 
 class GameLiftRegionClient(object):
     __gamelift_clients_by_region = {}
