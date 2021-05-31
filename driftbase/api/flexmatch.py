@@ -4,13 +4,15 @@
 
 from flask_smorest import Blueprint, abort
 from drift.core.extensions.urlregistry import Endpoints
+from drift.core.extensions.jwt import requires_roles
 from marshmallow import Schema, fields
 from flask.views import MethodView
-from flask import url_for
+from flask import url_for, request
 from six.moves import http_client
 from drift.core.extensions.jwt import current_user
 from driftbase import flexmatch
 import logging
+
 
 
 bp = Blueprint("flexmatch", "flexmatch", url_prefix="/flexmatch", description="Orchestration of GameLift/FlexMatch matchmaking.")
@@ -78,6 +80,16 @@ class FlexMatchPlayerAPI(MethodView):
         except flexmatch.GameliftClientException as e:
             log.error(f"Cancelling matchmaking ticket for player {current_user['player_id']} failed: Gamelift response:\n{e.debugs}")
             return {"error": e.msg}, http_client.INTERNAL_SERVER_ERROR
+
+
+
+@bp.route("/events")
+class FlexMatchEventAPI(MethodView):
+
+    @requires_roles("flexmatch_event")
+    def put(self):
+        flexmatch.process_flexmatch_event(request.json)
+        return {}, http_client.OK
 
 @endpoints.register
 def endpoint_info(*args):
