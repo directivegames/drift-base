@@ -47,7 +47,8 @@ class TestFlexMatchEventAPI(BaseCloudkitTest):
         self.put(url, data={"test": "testvalue"}, expected_status_code=http_client.UNAUTHORIZED)
         with _managed_bearer_token_user() as token:
             self.headers["Authorization"] = f"Bearer {token}"
-            self.put(url, data={"test": "testvalue"}, expected_status_code=http_client.OK)
+            with self.assertRaises(RuntimeError):
+                self.put(url, data={"test": "testvalue"}, expected_status_code=http_client.OK)
 
 
 class FlexMatchTest(BaseCloudkitTest):
@@ -210,25 +211,19 @@ class FlexMatchTest(BaseCloudkitTest):
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
             ticket = self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
+
         # PUT a searching event as gamelift does
         events_url = flexmatch_url + "events"
         with _managed_bearer_token_user() as token:
             self.headers["Authorization"] = f"Bearer {token}"
+            details = self._get_event_details(ticket["TicketId"])
+            details["type"] = "MatchmakingSearching"
             data = copy.copy(_matchmaking_event_template)
-            data["detail"]["type"] = "MatchmakingSearching"
-            data["detail"]["gameSessionInfo"]["players"] = [{
-                "playerId": str(self.player_id)
-            }]
-            data["detail"]["tickets"] = [{
-                "ticketId": str(ticket["TicketId"]),
-                "players": [{
-                    "playerId": str(self.player_id)
-                }]
-            }]
+            data["detail"] = details
             self.put(events_url, data=data, expected_status_code=http_client.OK)
         self.auth(username=user_name)
         r = self.get(flexmatch_url, expected_status_code=http_client.OK).json()
-        self.assertEqual(r['Status'], "MatchmakingSearching")
+        self.assertEqual(r['Status'], "SEARCHING")
 
     def test_potential_match_event(self):
         # Start matchmaking as a player
@@ -239,36 +234,56 @@ class FlexMatchTest(BaseCloudkitTest):
                                expected_status_code=http_client.OK).json()
         # PUT a potential match event as gamelift does
         events_url = flexmatch_url + "events"
+        data = copy.copy(_matchmaking_event_template)
+        details = self._get_event_details(ticket["TicketId"])
+        details["type"] = "PotentialMatchCreated"
         with _managed_bearer_token_user() as token:
             self.headers["Authorization"] = f"Bearer {token}"
-            data = copy.copy(_matchmaking_event_template)
-            data["detail"]["type"] = "PotentialMatchCreated"
-            data["detail"]["gameSessionInfo"]["players"] = [{
-                "playerId": str(self.player_id),
-                "team": "winners"
-            }]
-            data["detail"]["tickets"] = [{
-                "ticketId": str(ticket["TicketId"]),
-                "players": [{
-                    "playerId": str(self.player_id),
-                    "team": "winners"
-                }]
-            }]
+            details["acceptanceRequired"] = False
+            data["detail"] = details
             self.put(events_url, data=data, expected_status_code=http_client.OK)
         # Verify state
         self.auth(username=user_name)
         r = self.get(flexmatch_url, expected_status_code=http_client.OK).json()
-        self.assertEqual(r['Status'], "PotentialMatchCreated")
+        self.assertEqual(r['Status'], "PLACING")
         # Verify notification sent
         notification, _ = self.get_player_notification("matchmaking", "PotentialMatchCreated")
         self.assertIsInstance(notification, dict)
         self.assertTrue(notification["event"] == "PotentialMatchCreated")
         self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
+        # Test with acceptanceRequired as True
+        with _managed_bearer_token_user() as token:
+            self.headers["Authorization"] = f"Bearer {token}"
+            data["detail"]["acceptanceRequired"] = True
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(flexmatch_url, expected_status_code=http_client.OK).json()
+        self.assertEqual(r['Status'], "REQUIRES_ACCEPTANCE")
+        # Verify notification sent
+        notification, _ = self.get_player_notification("matchmaking", "PotentialMatchCreated")
+        self.assertTrue(notification["event"] == "PotentialMatchCreated")
+        self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
+        self.assertTrue(notification["data"]["acceptance_required"])
 
+
+    def _get_event_details(self, ticket_id):
+        players = [{
+            "playerId": str(self.player_id),
+            "team": "winners"
+        }]
+        return {
+            "gameSessionInfo": {
+                "players": players
+            },
+            "tickets": [{
+                "ticketId": ticket_id,
+                "players": players
+            }]
+        }
 
 @contextlib.contextmanager
 def _managed_bearer_token_user():
-    # FIXME: this whole thing is a c/p from test_jwt; consolidate.
+    # FIXME: this whole thing is pretty much a c/p from test_jwt; consolidate.
     access_key = str(uuid.uuid4())[:12]
     user_name = "testuser_{}".format(access_key[:4])
     role_name = "flexmatch_event"
