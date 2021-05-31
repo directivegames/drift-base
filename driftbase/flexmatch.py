@@ -115,6 +115,14 @@ def process_flexmatch_event(flexmatch_event):
         return _process_searching_event(event)
     if event_type == "PotentialMatchCreated":
         return _process_potential_match_event(event)
+    if event_type == "MatchmakingSucceeded":
+        return _process_matchmaking_succeeded_event(event)
+    if event_type == "MatchmakingCancelled":
+        # Not sure if we should do anything here; if it's cancelled via a player request, we've already deleted the
+        # ticket and if it's a backfill ticket being cancelled, we don't really care.
+        # Check how timeouts and acceptance failures show up though.
+        return
+    # TODO Failed/timeouts
     raise RuntimeError(f"Unknown event '{event_type}'")
 
 
@@ -260,6 +268,49 @@ def _process_potential_match_event(event):
     message_data = {team: list(players) for team, players in players_by_team.items()}
     message_data["acceptance_required"] = event["acceptanceRequired"]
     _post_matchmaking_event_to_members(player_ids_to_notify, "PotentialMatchCreated", event_data=message_data)
+
+def _process_matchmaking_succeeded_event(event):
+    log.info(f"Processing 'MatchmakingSucceeded' event:{event}")
+
+    game_session_info = event["gameSessionInfo"]
+    ip_address = game_session_info["ipAddress"]
+    port = game_session_info["port"]
+    connection_info_by_player_id = {}
+    players_by_ticket = defaultdict(set)  # For sanity checking
+    for ticket in event["tickets"]:
+        ticket_id = ticket["ticketId"]
+        for player in ticket["players"]:
+            player_id = int(player["playerId"])
+            players_by_ticket[ticket_id].add(player_id)
+            connection_info_by_player_id[player_id] = f"{ip_address}:{port}?sessionId={player['playerSessionId']}"
+
+    updated_tickets = set()
+    game_session_info = event["gameSessionInfo"]
+    for player in game_session_info["players"]:
+        player_id = int(player["playerId"])
+        ticket_key = _get_player_ticket_key(player_id)
+        with _LockedTicket(ticket_key) as ticket_lock:
+            player_ticket = ticket_lock.ticket
+            if player_ticket is None:  # This has to be a back fill ticket, i.e. not issued by us.
+                log.info(f"MatchmakingSucceeded event received for a player who has no ticket. Probably backfill.")
+                continue
+            if player_ticket.get("GameSessionConnectionInfo", None) is not None:
+                # If we've recorded a session, then the player has been placed in a match already
+                log.info(f"Player {player_id} has a session already. Not updating {player_ticket['TicketId']}")
+                continue
+            # sanity check
+            if player_id not in players_by_ticket.get(player_ticket["TicketId"], []):
+                for ticket, players in players_by_ticket.items():
+                    if player_id in players:
+                        log.warning(f"Weird, player {player_id} is registered to ticket {player_ticket['TicketId']} but this update pegs him on ticket {ticket}")
+                        break
+            log.info(f"Updating ticket {ticket['ticketId']} for player key {ticket_key} from {player_ticket['Status']} to 'COMPLETED'")
+            player_ticket["Status"] = "COMPLETED"
+            player_ticket["GameSessionConnectionInfo"] = game_session_info
+            ticket_lock.ticket = player_ticket
+            updated_tickets.add(ticket_key)
+    for player_id, connection in connection_info_by_player_id.items():
+        _post_matchmaking_event_to_members(player_id, "MatchmakingSuccess", event_data={"connection_string": connection})
 
 
 class GameLiftRegionClient(object):
