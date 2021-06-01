@@ -242,13 +242,13 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertTrue(notification["data"]["acceptance_required"])
 
     def test_matchmaking_succeeded(self):
-        connection_ip = "34.244.173.13"
-        connection_port = "7781"
+        connection_ip = "1.2.3.4"
+        connection_port = "7780"
         player_session_id = "psess-6f45ca3a-5522-4f6c-9293-7df04dc12cb6"
         user_name, ticket = self._initiate_matchmaking()
         events_url = self.endpoints["flexmatch"] + "events"
         data = copy.copy(_matchmaking_event_template)
-        details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners", "playerSessionId": player_session_id})
+        details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "playerSessionId": player_session_id})
         details["type"] = "MatchmakingSucceeded"
         details["gameSessionInfo"]["ipAddress"] = connection_ip
         details["gameSessionInfo"]["port"] = connection_port
@@ -266,7 +266,44 @@ class FlexMatchEventTest(BaseCloudkitTest):
         notification, _ = self.get_player_notification("matchmaking", "MatchmakingSuccess")
         self.assertTrue(notification["event"] == "MatchmakingSuccess")
         connection_data = notification["data"]
-        self.assertEqual(connection_data["connection_string"], f"{connection_ip}:{connection_port}?sessionId={player_session_id}")
+        self.assertEqual(connection_data["connection_string"], f"{connection_ip}:{connection_port}")
+        self.assertEqual(connection_data["options"], f"PlayerSessionId={player_session_id}?PlayerId={self.player_id}")
+
+    def test_matchmaking_cancelled(self):
+        user_name, ticket = self._initiate_matchmaking()
+        events_url = self.endpoints["flexmatch"] + "events"
+        data = copy.copy(_matchmaking_event_template)
+        details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id)})
+        details["type"] = "MatchmakingCancelled"
+        data["detail"] = details
+        with self._managed_bearer_token_user():
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['Status'], "CANCELLED")
+
+    def test_matchmaking_backfill_ticket_cancel_updates_player_ticket(self):
+        user_name, ticket = self._initiate_matchmaking()
+        events_url = self.endpoints["flexmatch"] + "events"
+        # Set ticket to 'COMPLETED'
+        data = copy.copy(_matchmaking_event_template)
+        details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "playerSessionId": "psess-123123", "team": "winners"})
+        details["type"] = "MatchmakingSucceeded"
+        details["gameSessionInfo"]["ipAddress"] = "1.2.3.4"
+        details["gameSessionInfo"]["port"] = "1234"
+        data["detail"] = details
+        with self._managed_bearer_token_user():
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+            real_ticket_id = ticket["TicketId"]
+            backfill_ticket_id = chr(ord(real_ticket_id[0]) + 1)
+            # The backfill tickets are issued by the battleserver with a ticketId drift doesn't track
+            details["tickets"][0]["ticketId"] = backfill_ticket_id
+            details["type"] = "MatchmakingCancelled"
+            data["detail"] = details
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['Status'], "MATCH_COMPLETE")
 
     def _initiate_matchmaking(self):
         user_name = self.make_player()
@@ -279,6 +316,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         players = [player_info]
         return {
             "type": "",
+            "matchId": "0a3eb4aa-ecdb-4595-81a0-ad2b2d61bd05",
             "gameSessionInfo": {
                 "ipAddress": None,
                 "port": None,
@@ -306,7 +344,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
 
     def _setup_service_user_with_bearer_token(self):
         # FIXME: Might be cleaner to use patching instead of populating the actual config. The upside with using config
-        #  is that it exposes the intended use case more clearlys
+        #  is that it exposes the intended use case more clearly
         conf = get_config()
         ts = conf.table_store
         # setup access roles
