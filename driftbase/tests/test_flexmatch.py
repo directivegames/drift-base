@@ -343,6 +343,36 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertEqual(r['Status'], "REQUIRES_ACCEPTANCE")
         self.assertTrue(r['Players'][0]['Accepted'])
 
+    def test_accept_match_completed_event(self):
+        user_name, ticket = self._initiate_matchmaking()
+        events_url = self.endpoints["flexmatch"] + "events"
+        data = copy.copy(_matchmaking_event_template)
+        details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners"})
+        details["type"] = "PotentialMatchCreated"
+        details["acceptanceRequired"] = True
+        data["detail"] = details
+        with self._managed_bearer_token_user():
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+            details["type"] = "AcceptMatchCompleted"
+            details["acceptance"] = "Accepted"  # TimedOut
+            data["detail"] = details
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['MatchStatus'], "ACCEPTED")
+        with self._managed_bearer_token_user():
+            data["detail"]["acceptance"] = "TimedOut"
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['MatchStatus'], "TIMEDOUT")
+        with self._managed_bearer_token_user():
+            data["detail"]["acceptance"] = "Rejected"
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['MatchStatus'], "REJECTED")
+
     def _initiate_matchmaking(self):
         user_name = self.make_player()
         with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
