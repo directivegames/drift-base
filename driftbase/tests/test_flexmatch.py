@@ -354,7 +354,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         with self._managed_bearer_token_user():
             self.put(events_url, data=data, expected_status_code=http_client.OK)
             details["type"] = "AcceptMatchCompleted"
-            details["acceptance"] = "Accepted"  # TimedOut
+            details["acceptance"] = "Accepted"
             data["detail"] = details
             self.put(events_url, data=data, expected_status_code=http_client.OK)
         self.auth(username=user_name)
