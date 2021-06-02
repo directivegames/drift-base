@@ -90,8 +90,8 @@ def cancel_player_ticket(player_id):
         ticket = ticket_lock.ticket
         if not ticket:
             return
-        if ticket["Status"] in ("COMPLETED", "PLACING"):
-            return  # Don't allow cancelling if we've put you in a match already
+        if ticket["Status"] in ("COMPLETED", "PLACING", "REQUIRES_ACCEPTANCE"):
+            return  # Don't allow cancelling if we've already put you in a match or we're in the process of doing so
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:
             gamelift_client.stop_matchmaking(TicketId=ticket["TicketId"])
@@ -146,6 +146,8 @@ def process_flexmatch_event(flexmatch_event):
         return _process_matchmaking_cancelled_event(event)
     if event_type == "AcceptMatch":
         return _process_accept_match_event(event)
+    if event_type == "AcceptMatchCompleted":
+        return _process_accept_match_completed_event(event)
     # TODO Failed/timeouts
     raise RuntimeError(f"Unknown event '{event_type}'")
 
@@ -388,6 +390,25 @@ def _process_accept_match_event(event):
                         ticket_lock.ticket = player_ticket
                         break
     _post_matchmaking_event_to_members(list(acceptance_by_player_id), "AcceptMatch", acceptance_by_player_id)
+
+def _process_accept_match_completed_event(event):
+    # This may be totally pointless as there should be a followup events to update the tickets to either 'searching' or 'cancelled'
+    log.info(f"Processing 'AcceptMatchCompleted' event:{event}")
+    acceptance_result = event.get("acceptance", "").upper()
+    game_session_info = event["gameSessionInfo"]
+    for player in game_session_info["players"]:
+        player_id = player["playerId"]
+        with _LockedTicket(_get_player_ticket_key(int(player_id))) as ticket_lock:
+            player_ticket = ticket_lock.ticket
+            if player_ticket is None:
+                log.error(f"Received acceptance event for player {player_id} who has no ticket.")
+                return
+            if player_ticket["Status"] != "REQUIRES_ACCEPTANCE":
+                log.error(f"Received acceptance event for player {player_id} who has a ticket in invalid state {player_ticket['Status']}.")
+                return
+            player_ticket["MatchStatus"] = acceptance_result
+            ticket_lock.ticket = player_ticket
+
 
 class GameLiftRegionClient(object):
     __gamelift_clients_by_region = {}
