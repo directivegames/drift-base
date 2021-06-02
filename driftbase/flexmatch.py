@@ -351,7 +351,6 @@ def _process_matchmaking_succeeded_event(event):
         _post_matchmaking_event_to_members([player_id], "MatchmakingSuccess", event_data=event_data)
 
 def _process_matchmaking_cancelled_event(event):
-    # TODO: Check how timeouts show up.
     log.info(f"Processing 'MatchmakingCancelled' event:{event}")
     for ticket in event["tickets"]:
         ticket_id = ticket["ticketId"]
@@ -396,7 +395,7 @@ def _process_accept_match_event(event):
     _post_matchmaking_event_to_members(list(acceptance_by_player_id), "AcceptMatch", acceptance_by_player_id)
 
 def _process_accept_match_completed_event(event):
-    # This may be totally pointless as there should be a followup events to update the tickets to either 'searching' or 'cancelled'
+    # This may be totally pointless as there should be a followup events to update the tickets to either 'searching', 'cancelled' or 'placing'
     log.info(f"Processing 'AcceptMatchCompleted' event:{event}")
     acceptance_result = event.get("acceptance", "").upper()
     game_session_info = event["gameSessionInfo"]
