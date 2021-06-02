@@ -24,17 +24,21 @@ def drift_init_extension(app, api, **kwargs):
     endpoints.init_app(app)
 
 
-class FlexMatchPatchArgs(Schema):
+class FlexMatchPlayerAPIPatchArgs(Schema):
     latency_ms = fields.Float(required=True, description="Latency between client and the region he's measuring against.")
     region = fields.String(required=True, description="Which region the latency was measured against.")
 
-class FlexMatchPostArgs(Schema):
+class FlexMatchPlayerAPIPostArgs(Schema):
     matchmaker = fields.String(required=True, description="Which matchmaker (configuration name) to issue the ticket for. ")
 
+class FlexMatchPlayerAPIPutArgs(Schema):
+    match_id = fields.String(required=True, description="The id of the match being accepted/rejected")
+    acceptance = fields.Boolean(required=True, description="True if match_id is accepted, False otherwise"
+                                                           "")
 @bp.route("/")
 class FlexMatchPlayerAPI(MethodView):
 
-    @bp.arguments(FlexMatchPatchArgs)
+    @bp.arguments(FlexMatchPlayerAPIPatchArgs)
     def patch(self, args):
         """
         Add a freshly measured latency value to the player tally.
@@ -48,7 +52,7 @@ class FlexMatchPlayerAPI(MethodView):
         flexmatch.update_player_latency(player_id, region, latency)
         return flexmatch.get_player_latency_averages(player_id), http_client.OK
 
-    @bp.arguments(FlexMatchPostArgs)
+    @bp.arguments(FlexMatchPlayerAPIPostArgs)
     def post(self, args):
         """
         Insert a matchmaking ticket for the requesting player or his party.
@@ -59,6 +63,21 @@ class FlexMatchPlayerAPI(MethodView):
             return ticket, http_client.OK
         except flexmatch.GameliftClientException as e:
             log.error(f"Inserting/updating matchmaking ticket for player {current_user['player_id']} failed: Gamelift response:\n{e.debugs}")
+            return {"error": e.msg}, http_client.INTERNAL_SERVER_ERROR
+
+    @bp.arguments(FlexMatchPlayerAPIPutArgs)
+    def put(self, args):
+        """
+        Accept or decline a match
+        """
+        player_id = current_user["player_id"]
+        match_id = args.get("match_id")
+        acceptance = args.get("acceptance")
+        try:
+            flexmatch.update_player_acceptance(player_id, match_id, acceptance)
+            return {}, http_client.OK
+        except flexmatch.GameliftClientException as e:
+            log.error(f"Updating the acceptance status for {match_id} on behalf of player {player_id} failed: Gamelift response:\n{e.debugs}")
             return {"error": e.msg}, http_client.INTERNAL_SERVER_ERROR
 
     def get(self):
