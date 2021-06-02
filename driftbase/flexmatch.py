@@ -150,7 +150,9 @@ def process_flexmatch_event(flexmatch_event):
         return _process_accept_match_completed_event(event)
     if event_type == "MatchmakingTimedOut":
         return _process_matchmaking_timeout_event(event)
-    
+    if event_type == "MatchmakingFailed":
+        return _process_matchmaking_failed_event(event)
+
     raise RuntimeError(f"Unknown event '{event_type}'")
 
 
@@ -412,7 +414,7 @@ def _process_accept_match_completed_event(event):
             ticket_lock.ticket = player_ticket
 
 def _process_matchmaking_timeout_event(event):
-    log.info(f"Processing 'AcceptMatchCompleted' event:{event}")
+    log.info(f"Processing 'MatchmakingTimedOut' event:{event}")
     players_to_notify = set()
     for ticket in event["tickets"]:
         ticket_id = ticket["ticketId"]
@@ -437,6 +439,32 @@ def _process_matchmaking_timeout_event(event):
                 players_to_notify.add(player_id)
     _post_matchmaking_event_to_members(players_to_notify, "MatchmakingFailed", event_data={"reason": "TimeOut"})
 
+def _process_matchmaking_failed_event(event):
+    log.info(f"Processing 'MatchmakingFailed' event:{event}")
+    # FIXME: This is pretty much the same as a timeout; refactor
+    players_to_notify = set()
+    for ticket in event["tickets"]:
+        ticket_id = ticket["ticketId"]
+        for player in ticket["players"]:
+            player_id = int(player["playerId"])
+            ticket_key = _get_player_ticket_key(player_id)
+            with _LockedTicket(ticket_key) as ticket_lock:
+                player_ticket = ticket_lock.ticket
+                if player_ticket is None:
+                    log.warning(f"Failed event for ticket {ticket_id} includes player {player_id} who has no ticket.")
+                    continue
+                if ticket_id != player_ticket["TicketId"]:
+                    # Maybe a failure on a backfill ticket?
+                    log.warning(f"Failed event for ticket {ticket_id} includes player {player_id} who has ticket {player_ticket['TicketId']}.")
+                    continue
+                if player_ticket.get("GameSessionConnectionInfo", None) is not None:
+                    # If we've recorded a session, then the player has been placed in a match already
+                    log.info(f"Player {player_id} has a session attached to his ticket.  Timeout is nonsensical here. Ignoring.")
+                    continue
+                player_ticket["Status"] = "FAILED"
+                ticket_lock.ticket = player_ticket
+                players_to_notify.add(player_id)
+    _post_matchmaking_event_to_members(players_to_notify, "MatchmakingFailed", event_data={"reason": event["reason"]})
 
 
 class GameLiftRegionClient(object):
