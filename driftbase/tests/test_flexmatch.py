@@ -389,6 +389,23 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertIsInstance(notification, dict)
         self.assertEqual(notification["data"]["reason"], "TimeOut")
 
+    def test_matchmaking_failed_event(self):
+        user_name, ticket = self._initiate_matchmaking()
+        events_url = self.endpoints["flexmatch"] + "events"
+        data = copy.copy(_matchmaking_event_template)
+        details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners"})
+        details["type"] = "MatchmakingFailed"
+        details["reason"] = "UnitTestInducedFailure"
+        data["detail"] = details
+        with self._managed_bearer_token_user():
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['Status'], "FAILED")
+        notification, _ = self.get_player_notification("matchmaking", "MatchmakingFailed")
+        self.assertIsInstance(notification, dict)
+        self.assertEqual(notification["data"]["reason"], details["reason"])
+
     def _initiate_matchmaking(self):
         user_name = self.make_player()
         with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
