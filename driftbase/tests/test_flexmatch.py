@@ -223,6 +223,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.auth(username=user_name)
         r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
         self.assertEqual(r['Status'], "PLACING")
+        self.assertEqual(r['MatchId'], details["matchId"])
         # Verify notification sent
         notification, _ = self.get_player_notification("matchmaking", "PotentialMatchCreated")
         self.assertIsInstance(notification, dict)
@@ -235,6 +236,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.auth(username=user_name)
         r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
         self.assertEqual(r['Status'], "REQUIRES_ACCEPTANCE")
+        self.assertEqual(r['MatchId'], details["matchId"])
         # Verify notification sent
         notification, _ = self.get_player_notification("matchmaking", "PotentialMatchCreated")
         self.assertTrue(notification["event"] == "PotentialMatchCreated")
@@ -281,6 +283,8 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.auth(username=user_name)
         r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
         self.assertEqual(r['Status'], "CANCELLED")
+        notification, _ = self.get_player_notification("matchmaking", "MatchmakingCancelled")
+        self.assertIsInstance(notification, dict)
 
     def test_matchmaking_backfill_ticket_cancel_updates_player_ticket(self):
         user_name, ticket = self._initiate_matchmaking()
@@ -304,6 +308,40 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.auth(username=user_name)
         r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
         self.assertEqual(r['Status'], "MATCH_COMPLETE")
+
+    def test_accept_match_event(self):
+        user_name, ticket = self._initiate_matchmaking()
+        events_url = self.endpoints["flexmatch"] + "events"
+        data = copy.copy(_matchmaking_event_template)
+        details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners"})
+        details["type"] = "PotentialMatchCreated"
+        details["acceptanceRequired"] = True
+        data["detail"] = details
+        with self._managed_bearer_token_user():
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        # Verify state
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['Status'], "REQUIRES_ACCEPTANCE")
+        # Verify notification sent
+        notification, _ = self.get_player_notification("matchmaking", "PotentialMatchCreated")
+        self.assertIsInstance(notification, dict)
+        self.assertTrue(notification["data"]["acceptance_required"])
+        # Accept the match
+        with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
+            self.put(self.endpoints["flexmatch"], data={"match_id": details["matchId"], "acceptance": True}, expected_status_code=http_client.OK)
+        # emit flexmatch event
+        details["type"] = "AcceptMatch"
+        details["tickets"][0]["players"][0]["accepted"] = True
+        details["gameSessionInfo"]["players"][0]["accepted"] = True
+        data["detail"] = details
+        with self._managed_bearer_token_user():
+            self.put(events_url, data=data, expected_status_code=http_client.OK)
+        self.auth(username=user_name)
+        r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
+        self.assertEqual(r['MatchId'], details["matchId"])
+        self.assertEqual(r['Status'], "REQUIRES_ACCEPTANCE")
+        self.assertTrue(r['Players'][0]['Accepted'])
 
     def _initiate_matchmaking(self):
         user_name = self.make_player()
@@ -514,6 +552,9 @@ class MockGameLiftClient(object):
                 'HTTPStatusCode': 200
             }
         }
+
+    def accept_match(self, **kwargs):
+        return {}
 
 
 _matchmaking_event_template = {

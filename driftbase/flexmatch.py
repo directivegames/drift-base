@@ -105,6 +105,29 @@ def get_player_ticket(player_id):
     with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
         return ticket_lock.ticket
 
+def update_player_acceptance(player_id, match_id, acceptance):
+    with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
+        player_ticket = ticket_lock.ticket
+        if player_ticket is None:
+            log.warning(f"Request to update acceptance for player {player_id} who has no ticket. Ignoring")
+            return
+        ticket_id = player_ticket["TicketId"]
+        log.info(f"Updating acceptance state of ticket {ticket_id} for player {player_id}")
+        if player_ticket["Status"] != "REQUIRES_ACCEPTANCE":
+            log.error(f"Ticket {ticket_id} doesn't require acceptance! Ignoring.")
+            return
+        if player_ticket["MatchId"] != match_id:
+            log.error(f"The matchId in ticket {ticket_id} doesn't match {match_id}! Ignoring.")
+            return
+
+        gamelift_client = GameLiftRegionClient(AWS_REGION)
+        try:
+            gamelift_client.accept_match(TicketId=ticket_id, PlayerIds=[str(player_id)], AcceptanceType='ACCEPT' if acceptance else 'REJECT')
+        except ClientError as e:
+            raise GameliftClientException(f"Failed to update acceptance for player {player_id}, ticket {ticket_id}", str(e))
+
+
+
 def process_flexmatch_event(flexmatch_event):
     event = _get_event_details(flexmatch_event)
     event_type = event.get("type", None)
@@ -121,6 +144,8 @@ def process_flexmatch_event(flexmatch_event):
         return _process_matchmaking_succeeded_event(event)
     if event_type == "MatchmakingCancelled":
         return _process_matchmaking_cancelled_event(event)
+    if event_type == "AcceptMatch":
+        return _process_accept_match_event(event)
     # TODO Failed/timeouts
     raise RuntimeError(f"Unknown event '{event_type}'")
 
@@ -261,6 +286,7 @@ def _process_potential_match_event(event):
                         break
             log.info(f"Updating ticket {ticket['ticketId']} for player key {ticket_key} from {player_ticket['Status']} to {new_state}")
             player_ticket["Status"] = new_state
+            player_ticket["MatchId"] = event["matchId"]
             player_ids_to_notify.add(player_id)
             ticket_lock.ticket = player_ticket
 
@@ -319,9 +345,7 @@ def _process_matchmaking_succeeded_event(event):
         _post_matchmaking_event_to_members([player_id], "MatchmakingSuccess", event_data=event_data)
 
 def _process_matchmaking_cancelled_event(event):
-    # Not sure if we should do anything here; if it's cancelled via a player request, we've already deleted the
-    # ticket and if it's a backfill ticket being cancelled, we don't really care.
-    # Check how timeouts and acceptance failures show up though.
+    # TODO: Check how timeouts show up.
     log.info(f"Processing 'MatchmakingCancelled' event:{event}")
     for ticket in event["tickets"]:
         ticket_id = ticket["ticketId"]
@@ -338,9 +362,32 @@ def _process_matchmaking_cancelled_event(event):
                     player_ticket["Status"] = "MATCH_COMPLETE"
                 else:
                     player_ticket["Status"] = "CANCELLED"
+                    _post_matchmaking_event_to_members([player_id], "MatchmakingCancelled")
                 ticket_lock.ticket = player_ticket
 
-
+def _process_accept_match_event(event):
+    log.info(f"Processing 'AcceptMatch' event:{event}")
+    game_session_info = event["gameSessionInfo"]
+    acceptance_by_player_id = {}
+    for player in game_session_info["players"]:
+        player_id = player["playerId"]
+        acceptance = player.get("accepted", None)
+        acceptance_by_player_id[player_id] = acceptance
+        if acceptance is not None:
+            with _LockedTicket(_get_player_ticket_key(int(player_id))) as ticket_lock:
+                player_ticket = ticket_lock.ticket
+                if player_ticket is None:
+                    log.error(f"Received acceptance event for player {player_id} who has no ticket.")
+                    return
+                if player_ticket["Status"] != "REQUIRES_ACCEPTANCE":
+                    log.error(f"Received acceptance event for player {player_id} who has a ticket in invalid state {player_ticket['Status']}.")
+                    return
+                for ticket_player in player_ticket["Players"]:
+                    if ticket_player['PlayerId'] == player_id:
+                        ticket_player["Accepted"] = acceptance
+                        ticket_lock.ticket = player_ticket
+                        break
+    _post_matchmaking_event_to_members(list(acceptance_by_player_id), "AcceptMatch", acceptance_by_player_id)
 
 class GameLiftRegionClient(object):
     __gamelift_clients_by_region = {}
