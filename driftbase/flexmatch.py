@@ -534,10 +534,15 @@ class _LockedTicket(object):
             if exc_type is None and self._modified is True:
                 pipe.delete(self._key)  # Always update the ticket wholesale, i.e. don't leave stale fields behind.
                 if self._ticket:
-                    pipe.set(self._key, json.dumps(self._ticket))
+                    pipe.set(self._key, self._jsonify_ticket())
             pipe.delete(self._lock_key)  # Release the lock
             pipe.execute()
 
+    def _jsonify_ticket(self):
+        for datefield in ("StartTime", "EndTime"):
+            if datefield in self._ticket:
+                self._ticket[datefield] = str(self._ticket[datefield])
+        return json.dumps(self._ticket)
 
 class GameliftClientException(Exception):
     def __init__(self, user_message, debug_info):

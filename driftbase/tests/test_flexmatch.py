@@ -578,6 +578,8 @@ class MockGameLiftClient(object):
             }
         }
         """
+        import datetime
+        from dateutil.tz import tzlocal
         # MEMO TO SELF: the current processor re-uses the status field in redis for ticket events later, so we never actually see the status, just the latest mm event
         return {
             "MatchmakingTicket": {
@@ -585,6 +587,7 @@ class MockGameLiftClient(object):
                 "ConfigurationName": kwargs["ConfigurationName"],
                 "ConfigurationArn": f"arn:aws:gamelift:{self.region}:331925803394:matchmakingconfiguration/{kwargs['ConfigurationName']}",
                 "Status": "QUEUED",  # Docs say the ticket will always be created with status QUEUED;
+                'StartTime': datetime.datetime(2021, 4, 23, 15, 1, 0, 460000, tzinfo=tzlocal()),
                 "Players": kwargs["Players"]
             },
             "ResponseMetadata": {
