@@ -64,6 +64,7 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
 
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:
+            log.info(f"Issuing a new matchmaking ticket for playerIds {member_ids}")
             response = gamelift_client.start_matchmaking(
                 ConfigurationName=matchmaking_configuration,
                 Players=[
@@ -89,9 +90,12 @@ def cancel_player_ticket(player_id):
     with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
         ticket = ticket_lock.ticket
         if not ticket:
+            log.info(f"Not cancelling non-existent ticket for player {player_id}")
             return
         if ticket["Status"] in ("COMPLETED", "PLACING", "REQUIRES_ACCEPTANCE"):
+            log.info(f"Not cancelling ticket for player {player_id} as he has crossed the Rubicon on ticket {ticket['TicketId']}")
             return  # Don't allow cancelling if we've already put you in a match or we're in the process of doing so
+        log.info(f"Cancelling ticket for player {player_id}, currently in state {ticket['Status']}")
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:
             gamelift_client.stop_matchmaking(TicketId=ticket["TicketId"])
@@ -120,9 +124,11 @@ def update_player_acceptance(player_id, match_id, acceptance):
             log.error(f"The matchId in ticket {ticket_id} doesn't match {match_id}! Ignoring.")
             return
 
+        acceptance_type = 'ACCEPT' if acceptance else 'REJECT'
+        log.info(f"Updating acceptance on ticket {player_ticket['TicketId']} for player {player_id} to {acceptance_type}")
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:
-            gamelift_client.accept_match(TicketId=ticket_id, PlayerIds=[str(player_id)], AcceptanceType='ACCEPT' if acceptance else 'REJECT')
+            gamelift_client.accept_match(TicketId=ticket_id, PlayerIds=[str(player_id)], AcceptanceType=acceptance_type)
         except ClientError as e:
             raise GameliftClientException(f"Failed to update acceptance for player {player_id}, ticket {ticket_id}", str(e))
 
@@ -313,6 +319,10 @@ def _process_matchmaking_succeeded_event(event):
         for player in ticket["players"]:
             player_id = int(player["playerId"])
             players_by_ticket[ticket_id].add(player_id)
+            if "playerSessionId" not in player:
+                log.warning(f"player {player_id} has no playerSessionId in a MatchmakingSucceeded event. Dumping event for analysis:")
+                log.warning(event)
+                continue
             connection_info_by_player_id[player_id] = f"PlayerSessionId={player['playerSessionId']}?PlayerId={player_id}"
 
     players_to_notify = set()
