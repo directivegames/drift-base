@@ -34,6 +34,8 @@ class FlexMatchPlayerAPIPostArgs(Schema):
 class FlexMatchPlayerAPIPutArgs(Schema):
     match_id = fields.String(required=True, description="The id of the match being accepted/rejected")
     acceptance = fields.Boolean(required=True, description="True if match_id is accepted, False otherwise")
+
+
 @bp.route("/")
 class FlexMatchPlayerAPI(MethodView):
 

@@ -83,9 +83,9 @@ class FlexMatchTest(BaseCloudkitTest):
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
             self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
-            notification, message_number = self.get_player_notification("matchmaking", "StartedMatchMaking")
+            notification, message_number = self.get_player_notification("matchmaking", "MatchmakingStarted")
             self.assertIsInstance(notification, dict)
-            self.assertTrue(notification["event"] == "StartedMatchMaking")
+            self.assertTrue(notification["event"] == "MatchmakingStarted")
 
     def test_matchmaking_includes_party_members(self):
         # Create a party of 2
@@ -125,9 +125,9 @@ class FlexMatchTest(BaseCloudkitTest):
                                  expected_status_code=http_client.OK).json()
         # Check if party host got the message
         self.auth(host_name)
-        notification, message_number = self.get_player_notification("matchmaking", "StartedMatchMaking")
+        notification, message_number = self.get_player_notification("matchmaking", "MatchmakingStarted")
         self.assertIsInstance(notification, dict)
-        self.assertTrue(notification["event"] == "StartedMatchMaking")
+        self.assertTrue(notification["event"] == "MatchmakingStarted")
 
     def test_delete_ticket(self):
         self.make_player()
@@ -186,14 +186,14 @@ class FlexMatchTest(BaseCloudkitTest):
             self.auth(username=host_name)
             self.delete(flexmatch_url, expected_status_code=http_client.NO_CONTENT)
             # host should have a notification
-            notification, _ = self.get_player_notification("matchmaking", "StoppedMatchMaking")
+            notification, _ = self.get_player_notification("matchmaking", "MatchmakingStopped")
             self.assertIsInstance(notification, dict)
-            self.assertTrue(notification["event"] == "StoppedMatchMaking")
+            self.assertTrue(notification["event"] == "MatchmakingStopped")
             # member should have a notification
             self.auth(username=member_name)
-            notification, _ = self.get_player_notification("matchmaking", "StoppedMatchMaking")
+            notification, _ = self.get_player_notification("matchmaking", "MatchmakingStopped")
             self.assertIsInstance(notification, dict)
-            self.assertTrue(notification["event"] == "StoppedMatchMaking")
+            self.assertTrue(notification["event"] == "MatchmakingStopped")
 
 class FlexMatchEventTest(BaseCloudkitTest):
     def test_searching_event(self):
@@ -229,6 +229,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertIsInstance(notification, dict)
         self.assertTrue(notification["event"] == "PotentialMatchCreated")
         self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
+        self.assertEqual(notification["data"]["match_id"], details["matchId"])
         # Test with acceptanceRequired as True
         with self._managed_bearer_token_user():
             data["detail"]["acceptanceRequired"] = True

@@ -83,7 +83,7 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
 
         ticket_lock.ticket = response["MatchmakingTicket"]
 
-        _post_matchmaking_event_to_members(member_ids, "StartedMatchMaking")
+        _post_matchmaking_event_to_members(member_ids, "MatchmakingStarted")
         return ticket_lock.ticket
 
 def cancel_player_ticket(player_id):
@@ -102,7 +102,7 @@ def cancel_player_ticket(player_id):
         except ClientError as e:
             raise GameliftClientException("Failed to cancel matchmaking ticket", str(e))
         ticket_lock.ticket = None
-        _post_matchmaking_event_to_members(_get_player_party_members(player_id), "StoppedMatchMaking")
+        _post_matchmaking_event_to_members(_get_player_party_members(player_id), "MatchmakingStopped")
         return ticket
 
 def get_player_ticket(player_id):
@@ -298,12 +298,13 @@ def _process_potential_match_event(event):
                         break
             log.info(f"Updating ticket {ticket['ticketId']} for player key {ticket_key} from {player_ticket['Status']} to {new_state}")
             player_ticket["Status"] = new_state
-            player_ticket["MatchId"] = event["matchId"]
+            player_ticket["MatchId"] = event["MatchId"]
             player_ids_to_notify.add(player_id)
             ticket_lock.ticket = player_ticket
 
     message_data = {team: list(players) for team, players in players_by_team.items()}
     message_data["acceptance_required"] = event["acceptanceRequired"]
+    message_data["match_id"] = event["MatchId"];
     _post_matchmaking_event_to_members(player_ids_to_notify, "PotentialMatchCreated", event_data=message_data)
 
 def _process_matchmaking_succeeded_event(event):
@@ -348,6 +349,8 @@ def _process_matchmaking_succeeded_event(event):
             log.info(f"Updating ticket {ticket['ticketId']} for player key {ticket_key} from {player_ticket['Status']} to 'COMPLETED'")
             player_ticket["Status"] = "COMPLETED"
             player_ticket["MatchId"] = event["matchId"]
+            game_session_info["ConnectionString"] = f"{ip_address}:{port}"
+            game_session_info["ConnectionOptions"] = connection_info_by_player_id[player_id]
             player_ticket["GameSessionConnectionInfo"] = game_session_info
             ticket_lock.ticket = player_ticket
             players_to_notify.add(player_id)

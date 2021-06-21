@@ -95,7 +95,7 @@ def fetch_messages(exchange, exchange_id, min_message_number=0, rows=None):
         i += 1
         if curr_message_number < min_message_number:
             break
-        expires = datetime.datetime.fromisoformat(message["expires"][:-1]) # remove trailing 'Z'
+        expires = datetime.datetime.fromisoformat(message["expires"][:-1])  # remove trailing 'Z'
         if expires > utcnow():
             messages.append(message)
             log.info("Message %s ('%s') has been retrieved from queue '%s' in "
