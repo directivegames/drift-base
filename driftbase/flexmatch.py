@@ -312,7 +312,7 @@ def _process_matchmaking_succeeded_event(event):
 
     game_session_info = event["gameSessionInfo"]
     ip_address = game_session_info["ipAddress"]
-    port = game_session_info["port"]
+    port = int(game_session_info["port"])
     connection_info_by_player_id = {}
     players_by_ticket = defaultdict(set)  # For sanity checking
     for ticket in event["tickets"]:
