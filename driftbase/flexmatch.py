@@ -298,13 +298,13 @@ def _process_potential_match_event(event):
                         break
             log.info(f"Updating ticket {ticket['ticketId']} for player key {ticket_key} from {player_ticket['Status']} to {new_state}")
             player_ticket["Status"] = new_state
-            player_ticket["MatchId"] = event["MatchId"]
+            player_ticket["MatchId"] = event["matchId"]
             player_ids_to_notify.add(player_id)
             ticket_lock.ticket = player_ticket
 
     message_data = {team: list(players) for team, players in players_by_team.items()}
     message_data["acceptance_required"] = event["acceptanceRequired"]
-    message_data["match_id"] = event["MatchId"];
+    message_data["match_id"] = event["matchId"];
     _post_matchmaking_event_to_members(player_ids_to_notify, "PotentialMatchCreated", event_data=message_data)
 
 def _process_matchmaking_succeeded_event(event):
