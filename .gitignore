@@ -73,3 +73,6 @@ celerybeat-schedule
 
 # Drift config folder for local development
 .driftconfig-developer
+
+# Editor setup
+.editorconfig

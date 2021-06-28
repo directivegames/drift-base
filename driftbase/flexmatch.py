@@ -82,7 +82,6 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
             raise GameliftClientException("Failed to start matchmaking", str(e))
 
         ticket_lock.ticket = response["MatchmakingTicket"]
-
         _post_matchmaking_event_to_members(member_ids, "MatchmakingStarted")
         return ticket_lock.ticket
 

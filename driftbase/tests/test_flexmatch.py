@@ -87,6 +87,7 @@ class FlexMatchTest(BaseCloudkitTest):
             self.assertIsInstance(notification, dict)
             self.assertTrue(notification["event"] == "MatchmakingStarted")
 
+
     def test_matchmaking_includes_party_members(self):
         # Create a party of 2
         member_name = self.make_player()
@@ -195,6 +196,7 @@ class FlexMatchTest(BaseCloudkitTest):
             self.assertIsInstance(notification, dict)
             self.assertTrue(notification["event"] == "MatchmakingStopped")
 
+
 class FlexMatchEventTest(BaseCloudkitTest):
     def test_searching_event(self):
         user_name, ticket = self._initiate_matchmaking()
@@ -230,6 +232,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertTrue(notification["event"] == "PotentialMatchCreated")
         self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
         self.assertEqual(notification["data"]["match_id"], details["matchId"])
+
         # Test with acceptanceRequired as True
         with self._managed_bearer_token_user():
             data["detail"]["acceptanceRequired"] = True
