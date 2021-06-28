@@ -1,4 +1,3 @@
-
 import random
 import sys
 import time
@@ -16,10 +15,8 @@ from driftbase.api.messages import post_message
 NUM_VALUES_FOR_LATENCY_AVERAGE = 3
 REDIS_TTL = 1800
 
-# FIXME: Figure out how to do multi-region matchmaking; afaik, the configuration isn't region based, but the queue it
-#  uses (if using queues) is per region, and the queues themselves can have destination fleets in multiple regions.
-#  To add to confusion, you can specify a configuration WITH_QUEUE and not specify any queue at all and that's a valid
-#  configuration
+# FIXME: Figure out how to do multi-region matchmaking; afaik, the configuration isn't region based, but both queues and
+#  events are. The queues themselves can have destination fleets in multiple regions.
 AWS_REGION = "eu-west-1"
 VALID_REGIONS = {"eu-west-1"}
 
@@ -82,6 +79,7 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
             raise GameliftClientException("Failed to start matchmaking", str(e))
 
         ticket_lock.ticket = response["MatchmakingTicket"]
+
         _post_matchmaking_event_to_members(member_ids, "MatchmakingStarted")
         return ticket_lock.ticket
 
@@ -227,6 +225,7 @@ def _process_searching_event(event):
             players_by_ticket[ticket_id].add(int(player["playerId"]))
 
     updated_tickets = set()
+    player_ids_to_notify = set()
     game_session_info = event["gameSessionInfo"]
     for player in game_session_info["players"]:
         player_id = int(player["playerId"])
@@ -258,6 +257,8 @@ def _process_searching_event(event):
             player_ticket["Status"] = "SEARCHING"
             ticket_lock.ticket = player_ticket
             updated_tickets.add(ticket_key)
+            player_ids_to_notify.add(player_id)
+    _post_matchmaking_event_to_members(player_ids_to_notify, "MatchmakingSearching")
 
 def _process_potential_match_event(event):
     log.info(f"Processing 'PotentialMatchCreated' event:{event}")
@@ -561,3 +562,4 @@ class GameliftClientException(Exception):
         super().__init__(user_message, debug_info)
         self.msg = user_message
         self.debugs = debug_info
+

@@ -1,4 +1,3 @@
-
 from six.moves import http_client
 from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
@@ -86,7 +85,6 @@ class FlexMatchTest(BaseCloudkitTest):
             notification, message_number = self.get_player_notification("matchmaking", "MatchmakingStarted")
             self.assertIsInstance(notification, dict)
             self.assertTrue(notification["event"] == "MatchmakingStarted")
-
 
     def test_matchmaking_includes_party_members(self):
         # Create a party of 2
@@ -196,7 +194,6 @@ class FlexMatchTest(BaseCloudkitTest):
             self.assertIsInstance(notification, dict)
             self.assertTrue(notification["event"] == "MatchmakingStopped")
 
-
 class FlexMatchEventTest(BaseCloudkitTest):
     def test_searching_event(self):
         user_name, ticket = self._initiate_matchmaking()
@@ -210,6 +207,9 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.auth(username=user_name)
         r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
         self.assertEqual(r['Status'], "SEARCHING")
+        notification, _ = self.get_player_notification("matchmaking", "MatchmakingSearching")
+        self.assertIsInstance(notification, dict)
+        self.assertTrue(notification["event"] == "MatchmakingSearching")
 
     def test_potential_match_event(self):
         user_name, ticket = self._initiate_matchmaking()
@@ -232,7 +232,6 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertTrue(notification["event"] == "PotentialMatchCreated")
         self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
         self.assertEqual(notification["data"]["match_id"], details["matchId"])
-
         # Test with acceptanceRequired as True
         with self._managed_bearer_token_user():
             data["detail"]["acceptanceRequired"] = True
