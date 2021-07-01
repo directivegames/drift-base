@@ -304,8 +304,7 @@ def _process_potential_match_event(event):
     message_data = {team: list(players) for team, players in players_by_team.items()}
     message_data["acceptance_required"] = event["acceptanceRequired"]
     message_data["match_id"] = event["matchId"];
-    if acceptance_required:
-        message_data["acceptance_timeout"] = event["acceptanceTimeout"]
+    message_data["acceptance_timeout"] = event["acceptanceTimeout"]
     _post_matchmaking_event_to_members(player_ids_to_notify, "PotentialMatchCreated", event_data=message_data)
 
 def _process_matchmaking_succeeded_event(event):
