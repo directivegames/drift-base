@@ -233,8 +233,10 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
         self.assertEqual(notification["data"]["match_id"], details["matchId"])
         # Test with acceptanceRequired as True
+        acceptance_timeout = 123
         with self._managed_bearer_token_user():
             data["detail"]["acceptanceRequired"] = True
+            data["detail"]["acceptanceTimeout"] = acceptance_timeout
             self.put(events_url, data=data, expected_status_code=http_client.OK)
         self.auth(username=user_name)
         r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
@@ -245,6 +247,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertTrue(notification["event"] == "PotentialMatchCreated")
         self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
         self.assertTrue(notification["data"]["acceptance_required"])
+        self.assertEqual(notification["data"]["acceptance_timeout"], acceptance_timeout)
 
     def test_matchmaking_succeeded(self):
         connection_ip = "1.2.3.4"
@@ -319,6 +322,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners"})
         details["type"] = "PotentialMatchCreated"
         details["acceptanceRequired"] = True
+        details["acceptanceTimeout"] = 10
         data["detail"] = details
         with self._managed_bearer_token_user():
             self.put(events_url, data=data, expected_status_code=http_client.OK)
@@ -353,6 +357,7 @@ class FlexMatchEventTest(BaseCloudkitTest):
         details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners"})
         details["type"] = "PotentialMatchCreated"
         details["acceptanceRequired"] = True
+        details["acceptanceTimeout"] = 10
         data["detail"] = details
         with self._managed_bearer_token_user():
             self.put(events_url, data=data, expected_status_code=http_client.OK)

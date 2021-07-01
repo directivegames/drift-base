@@ -56,12 +56,13 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration):
             if ticket_status in ("QUEUED", "SEARCHING", "REQUIRES_ACCEPTANCE", "PLACING", "COMPLETED"):
                 # TODO: Check if I need to add player_id to the ticket. This is the use case where someone accepts a party
                 #  invite after matchmaking started.
+                log.info(f"Returning existing ticket {ticket_lock.ticket['TicketId']} to player {player_id}")
                 return ticket_lock.ticket  # Ticket is still valid
             # otherwise, we issue a new ticket
 
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:
-            log.info(f"Issuing a new matchmaking ticket for playerIds {member_ids}")
+            log.info(f"Issuing a new matchmaking ticket for playerIds {member_ids} on behalf of calling player {player_id}")
             response = gamelift_client.start_matchmaking(
                 ConfigurationName=matchmaking_configuration,
                 Players=[
@@ -139,6 +140,7 @@ def process_flexmatch_event(flexmatch_event):
     if len(event.get("tickets", 0)) == 0:
         raise RuntimeError("No tickets!")
 
+    log.info(f"Incoming '{event_type}' flexmatch event: {event}")
     if event_type == "MatchmakingSearching":
         return _process_searching_event(event)
     if event_type == "PotentialMatchCreated":
@@ -215,8 +217,6 @@ def _get_event_details(event):
     return details
 
 def _process_searching_event(event):
-    log.info(f"Processing 'MatchmakingSearching' event:{event}")
-
     # This block is probably useless, but it sanity checks...
     players_by_ticket = defaultdict(set)
     for ticket in event["tickets"]:
@@ -261,8 +261,6 @@ def _process_searching_event(event):
     _post_matchmaking_event_to_members(player_ids_to_notify, "MatchmakingSearching")
 
 def _process_potential_match_event(event):
-    log.info(f"Processing 'PotentialMatchCreated' event:{event}")
-
     player_ids_to_notify = set()
     players_by_team = defaultdict(set)
     players_by_ticket = defaultdict(set)  # For sanity checking
@@ -273,7 +271,8 @@ def _process_potential_match_event(event):
             players_by_ticket[ticket_id].add(player_id)
             players_by_team[player["team"]].add(player_id)
 
-    new_state = "REQUIRES_ACCEPTANCE" if event["acceptanceRequired"] else "PLACING"
+    acceptance_required = event["acceptanceRequired"]
+    new_state = "REQUIRES_ACCEPTANCE" if acceptance_required else "PLACING"
     game_session_info = event["gameSessionInfo"]
     for player in game_session_info["players"]:
         player_id = int(player["playerId"])
@@ -305,11 +304,11 @@ def _process_potential_match_event(event):
     message_data = {team: list(players) for team, players in players_by_team.items()}
     message_data["acceptance_required"] = event["acceptanceRequired"]
     message_data["match_id"] = event["matchId"];
+    if acceptance_required:
+        message_data["acceptance_timeout"] = event["acceptanceTimeout"]
     _post_matchmaking_event_to_members(player_ids_to_notify, "PotentialMatchCreated", event_data=message_data)
 
 def _process_matchmaking_succeeded_event(event):
-    log.info(f"Processing 'MatchmakingSucceeded' event:{event}")
-
     game_session_info = event["gameSessionInfo"]
     ip_address = game_session_info["ipAddress"]
     port = int(game_session_info["port"])
@@ -364,7 +363,6 @@ def _process_matchmaking_succeeded_event(event):
         _post_matchmaking_event_to_members([player_id], "MatchmakingSuccess", event_data=event_data)
 
 def _process_matchmaking_cancelled_event(event):
-    log.info(f"Processing 'MatchmakingCancelled' event:{event}")
     for ticket in event["tickets"]:
         ticket_id = ticket["ticketId"]
         for player in ticket["players"]:
@@ -384,7 +382,6 @@ def _process_matchmaking_cancelled_event(event):
                 ticket_lock.ticket = player_ticket
 
 def _process_accept_match_event(event):
-    log.info(f"Processing 'AcceptMatch' event:{event}")
     game_session_info = event["gameSessionInfo"]
     acceptance_by_player_id = {}
     for player in game_session_info["players"]:
@@ -409,7 +406,6 @@ def _process_accept_match_event(event):
 
 def _process_accept_match_completed_event(event):
     # This may be totally pointless as there should be a followup events to update the tickets to either 'searching', 'cancelled' or 'placing'
-    log.info(f"Processing 'AcceptMatchCompleted' event:{event}")
     acceptance_result = event.get("acceptance", "").upper()
     game_session_info = event["gameSessionInfo"]
     for player in game_session_info["players"]:
@@ -426,7 +422,6 @@ def _process_accept_match_completed_event(event):
             ticket_lock.ticket = player_ticket
 
 def _process_matchmaking_timeout_event(event):
-    log.info(f"Processing 'MatchmakingTimedOut' event:{event}")
     players_to_notify = set()
     for ticket in event["tickets"]:
         ticket_id = ticket["ticketId"]
@@ -452,7 +447,6 @@ def _process_matchmaking_timeout_event(event):
     _post_matchmaking_event_to_members(players_to_notify, "MatchmakingFailed", event_data={"reason": "TimeOut"})
 
 def _process_matchmaking_failed_event(event):
-    log.info(f"Processing 'MatchmakingFailed' event:{event}")
     # FIXME: This is pretty much the same as a timeout; refactor
     players_to_notify = set()
     for ticket in event["tickets"]:
