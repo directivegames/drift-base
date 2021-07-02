@@ -214,10 +214,12 @@ class FlexMatchEventTest(BaseCloudkitTest):
     def test_potential_match_event(self):
         user_name, ticket = self._initiate_matchmaking()
         events_url = self.endpoints["flexmatch"] + "events"
+        acceptance_timeout = 123
         data = copy.copy(_matchmaking_event_template)
         details = self._get_event_details(ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners"})
         details["type"] = "PotentialMatchCreated"
         details["acceptanceRequired"] = False
+        details["acceptanceTimeout"] = acceptance_timeout
         data["detail"] = details
         with self._managed_bearer_token_user():
             self.put(events_url, data=data, expected_status_code=http_client.OK)
@@ -233,10 +235,8 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertSetEqual(set(notification["data"]["winners"]), {self.player_id})
         self.assertEqual(notification["data"]["match_id"], details["matchId"])
         # Test with acceptanceRequired as True
-        acceptance_timeout = 123
         with self._managed_bearer_token_user():
             data["detail"]["acceptanceRequired"] = True
-            data["detail"]["acceptanceTimeout"] = acceptance_timeout
             self.put(events_url, data=data, expected_status_code=http_client.OK)
         self.auth(username=user_name)
         r = self.get(self.endpoints["flexmatch"], expected_status_code=http_client.OK).json()
