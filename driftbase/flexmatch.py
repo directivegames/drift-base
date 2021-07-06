@@ -404,7 +404,10 @@ def _process_accept_match_event(event):
     _post_matchmaking_event_to_members(list(acceptance_by_player_id), "AcceptMatch", acceptance_by_player_id)
 
 def _process_accept_match_completed_event(event):
-    # This may be totally pointless as there should be a followup events to update the tickets to either 'searching', 'cancelled' or 'placing'
+    # This may be totally pointless as there should be a followup event, and in case of rejection, multiple events.
+    # In case the potential match was rejected, those who did accept should get a new searching event for their tickets,
+    # but those who rejected will get a failed event on theirs.
+    # If the match did get accepted, the success event will update all tickets in a single event
     acceptance_result = event.get("acceptance", "").upper()
     game_session_info = event["gameSessionInfo"]
     for player in game_session_info["players"]:
