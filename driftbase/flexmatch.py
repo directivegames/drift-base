@@ -18,7 +18,7 @@ REDIS_TTL = 1800
 # FIXME: Figure out how to do multi-region matchmaking; afaik, the configuration isn't region based, but both queues and
 #  events are. The queues themselves can have destination fleets in multiple regions.
 AWS_REGION = "eu-west-1"
-VALID_REGIONS = {"eu-west-1"}
+VALID_REGIONS = {"eu-west-1"}  # TODO: Put in config and let clients fetch the list of regions to ping from us.
 
 log = logging.getLogger(__name__)
 
@@ -498,15 +498,14 @@ class _LockedTicket(object):
     """
     Context manager for synchronizing creation and modification of matchmaking tickets.
     """
-    MAX_LOCK_TIME_SECONDS = 30  # Avoid stale locking by defining a maximum time a lock can be held. This is probably excessive though...
+    MAX_LOCK_WAIT_TIME_SECONDS = 30
 
     def __init__(self, key):
         self._key = key
-        self._lock_key = key + 'LOCK'
-        self._lock_sentinel_value = random.randint(0, sys.maxsize)
         self._redis = g.redis
         self._modified = False
         self._ticket = None
+        self._lock = g.redis.conn.lock(self._key + "LOCK", timeout=self.MAX_LOCK_WAIT_TIME_SECONDS)
 
     @property
     def ticket(self):
@@ -518,31 +517,21 @@ class _LockedTicket(object):
         self._modified = True
 
     def __enter__(self):
-        while True:
-            # Attempt to acquire the lock by setting a value on the key to something unique to this request.
-            # Fails if the key already exists, meaning someone else is holding the lock
-            if self._redis.conn.set(self._lock_key, self._lock_sentinel_value, nx=True, ex=self.MAX_LOCK_TIME_SECONDS):
-                # we hold the lock now
-                ticket = self._redis.conn.get(self._key)
-                if ticket is not None:
-                    self._ticket = json.loads(ticket)
-                return self
-            else:  # someone else holds the lock for this key
-                time.sleep(0.1)  # Kind of miss stackless channels for 'block-until-woken' :)
+        self._lock.acquire(blocking=True)
+        ticket = self._redis.conn.get(self._key)
+        if ticket is not None:
+            self._ticket = json.loads(ticket)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        lock_sentinel_value = int(self._redis.conn.get(self._lock_key) or 0)  # or 0 in case we expired and someone else deleted the key
-        if lock_sentinel_value != self._lock_sentinel_value:
-            # If the sentinel value differs, we held the lock for too long and someone else is now holding the lock,
-            # so we'll bail without updating anything
-            return
-        with self._redis.conn.pipeline() as pipe:
-            if exc_type is None and self._modified is True:
-                pipe.delete(self._key)  # Always update the ticket wholesale, i.e. don't leave stale fields behind.
-                if self._ticket:
-                    pipe.set(self._key, self._jsonify_ticket())
-            pipe.delete(self._lock_key)  # Release the lock
-            pipe.execute()
+        if self._lock.owned():  # If we don't own the lock at this point, we don't want to update anything
+            with self._redis.conn.pipeline() as pipe:
+                if exc_type is None and self._modified is True:
+                    pipe.delete(self._key)  # Always update the ticket wholesale, i.e. don't leave stale fields behind.
+                    if self._ticket:
+                        pipe.set(self._key, self._jsonify_ticket())
+                pipe.execute()
+            self._lock.release()
 
     def _jsonify_ticket(self):
         for datefield in ("StartTime", "EndTime"):
