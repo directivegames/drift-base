@@ -8,9 +8,9 @@ from drift.core.extensions.jwt import requires_roles
 from marshmallow import Schema, fields
 from flask.views import MethodView
 from flask import url_for, request
-from six.moves import http_client
 from drift.core.extensions.jwt import current_user
 from driftbase import flexmatch
+import http.client as http_client
 import logging
 
 

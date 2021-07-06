@@ -6,7 +6,7 @@ import marshmallow as ma
 from flask import url_for, g, jsonify
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
-from six.moves import http_client
+import http.client as http_client
 
 from drift.core.extensions.jwt import current_user, requires_roles
 from drift.core.extensions.urlregistry import Endpoints
