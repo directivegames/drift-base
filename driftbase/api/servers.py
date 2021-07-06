@@ -104,14 +104,14 @@ class ServerPutResponseSchema(ma.Schema):
 
 
 class ServerHeartbeatPutResponseSchema(ma.Schema):
-    last_heartbeat = ma.fields.DateTime(description="Timestamp of the previous heartbeat")
-    this_heartbeat = ma.fields.DateTime(description="Timestamp of this heartbeat")
-    next_heartbeat = ma.fields.DateTime(description="Timestamp when the next heartbeat is expected")
-    next_heartbeat_seconds = ma.fields.Integer(description="Number of seconds until the next heartbeat is expected")
+    last_heartbeat = ma.fields.DateTime(metadata=dict(description="Timestamp of the previous heartbeat"))
+    this_heartbeat = ma.fields.DateTime(metadata=dict(description="Timestamp of this heartbeat"))
+    next_heartbeat = ma.fields.DateTime(metadata=dict(description="Timestamp when the next heartbeat is expected"))
+    next_heartbeat_seconds = ma.fields.Integer(metadata=dict(description="Number of seconds until the next heartbeat is expected"))
     heartbeat_timeout = ma.fields.DateTime(
-        description="Timestamp when the server times out if no heartbeat is received")
+        metadata=dict(description="Timestamp when the server times out if no heartbeat is received"))
     heartbeat_timeout_seconds = ma.fields.Integer(
-        description="Number of seconds until the server times out if no heartbeat is received")
+        metadata=dict(description="Number of seconds until the server times out if no heartbeat is received"))
 
 
 @bp.route('', endpoint='list')

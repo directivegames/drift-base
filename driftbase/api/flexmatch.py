@@ -25,15 +25,15 @@ def drift_init_extension(app, api, **kwargs):
 
 
 class FlexMatchPlayerAPIPatchArgs(Schema):
-    latency_ms = fields.Float(required=True, description="Latency between client and the region he's measuring against.")
-    region = fields.String(required=True, description="Which region the latency was measured against.")
+    latency_ms = fields.Float(required=True, metadata=dict(description="Latency between client and the region he's measuring against."))
+    region = fields.String(required=True, metadata=dict(description="Which region the latency was measured against."))
 
 class FlexMatchPlayerAPIPostArgs(Schema):
-    matchmaker = fields.String(required=True, description="Which matchmaker (configuration name) to issue the ticket for. ")
+    matchmaker = fields.String(required=True, metadata=dict(description="Which matchmaker (configuration name) to issue the ticket for. "))
 
 class FlexMatchPlayerAPIPutArgs(Schema):
-    match_id = fields.String(required=True, description="The id of the match being accepted/rejected")
-    acceptance = fields.Boolean(required=True, description="True if match_id is accepted, False otherwise")
+    match_id = fields.String(required=True, metadata=dict(description="The id of the match being accepted/rejected"))
+    acceptance = fields.Boolean(required=True, metadata=dict(description="True if match_id is accepted, False otherwise"))
 
 
 @bp.route("/")
