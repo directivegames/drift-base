@@ -48,7 +48,7 @@ class FlexMatchPlayerAPI(MethodView):
         player_id = current_user["player_id"]
         latency = args.get("latency_ms")
         region = args.get("region")
-        if None in (latency, region) or region not in flexmatch.VALID_REGIONS or not isinstance(latency, (int, float)):
+        if not isinstance(latency, (int, float)) or region not in flexmatch.get_valid_regions():
             abort(http_client.BAD_REQUEST, message="Invalid or missing arguments")
         flexmatch.update_player_latency(player_id, region, latency)
         return flexmatch.get_player_latency_averages(player_id), http_client.OK

@@ -11,6 +11,7 @@ from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.api.messages import post_message
 
+from driftbase.resources.flexmatch import TIER_DEFAULTS
 
 NUM_VALUES_FOR_LATENCY_AVERAGE = 3
 REDIS_TTL = 1800
@@ -18,7 +19,6 @@ REDIS_TTL = 1800
 # FIXME: Figure out how to do multi-region matchmaking; afaik, the configuration isn't region based, but both queues and
 #  events are. The queues themselves can have destination fleets in multiple regions.
 AWS_REGION = "eu-west-1"
-VALID_REGIONS = {"eu-west-1"}  # TODO: Put in config and let clients fetch the list of regions to ping from us.
 
 log = logging.getLogger(__name__)
 
@@ -130,7 +130,12 @@ def update_player_acceptance(player_id, match_id, acceptance):
         except ClientError as e:
             raise GameliftClientException(f"Failed to update acceptance for player {player_id}, ticket {ticket_id}", str(e))
 
-
+def get_valid_regions():
+    tenant = g.conf.tenant
+    default_regions = TIER_DEFAULTS["valid_regions"]
+    if tenant:
+        return g.conf.tenant.get("gamelift", {}).get("valid_regions", default_regions)
+    return default_regions
 
 def process_flexmatch_event(flexmatch_event):
     event = _get_event_details(flexmatch_event)
@@ -204,9 +209,10 @@ def _post_matchmaking_event_to_members(receiving_player_ids, event, event_data=N
         post_message("players", receiver_id, "matchmaking", payload, expiry)
 
 def _get_gamelift_role():
+    default_role = TIER_DEFAULTS["aws_gamelift_role"]
     if g.conf.tenant:
-        return g.conf.tenant.get("gamelift", {}).get("assume_role", "")
-    return ""
+        return g.conf.tenant.get("gamelift", {}).get("assume_role", default_role)
+    return default_role
 
 def _get_event_details(event):
     if event.get("detail-type", None) != "GameLift Matchmaking Event":
