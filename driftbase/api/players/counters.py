@@ -14,7 +14,6 @@ from drift.utils import Url
 from flask import request, g, url_for, jsonify
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
-from flask_marshmallow.fields import AbsoluteURLFor
 import http.client as http_client
 from sqlalchemy.exc import IntegrityError
 
