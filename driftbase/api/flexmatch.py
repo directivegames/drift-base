@@ -96,6 +96,8 @@ class FlexMatchPlayerAPI(MethodView):
             deleted_ticket = flexmatch.cancel_player_ticket(current_user["player_id"])
             if deleted_ticket is None:
                 return {}, http_client.NOT_FOUND
+            if isinstance(deleted_ticket, str):
+                return {"Status": deleted_ticket}, http_client.OK
             return {}, http_client.NO_CONTENT
         except flexmatch.GameliftClientException as e:
             log.error(f"Cancelling matchmaking ticket for player {current_user['player_id']} failed: Gamelift response:\n{e.debugs}")

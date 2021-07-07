@@ -92,7 +92,7 @@ def cancel_player_ticket(player_id):
             return
         if ticket["Status"] in ("COMPLETED", "PLACING", "REQUIRES_ACCEPTANCE"):
             log.info(f"Not cancelling ticket for player {player_id} as he has crossed the Rubicon on ticket {ticket['TicketId']}")
-            return  # Don't allow cancelling if we've already put you in a match or we're in the process of doing so
+            return ticket["Status"]  # Don't allow cancelling if we've already put you in a match or we're in the process of doing so
         log.info(f"Cancelling ticket for player {player_id}, currently in state {ticket['Status']}")
         gamelift_client = GameLiftRegionClient(AWS_REGION)
         try:

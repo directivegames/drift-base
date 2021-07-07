@@ -9,6 +9,7 @@ import copy
 
 REGION = "eu-west-1"
 
+
 class TestFlexMatchPlayerAPI(BaseCloudkitTest):
     def test_patch_api(self):
         self.make_player()
@@ -40,7 +41,101 @@ class TestFlexMatchPlayerAPI(BaseCloudkitTest):
             self.delete(flexmatch_url, expected_status_code=http_client.NO_CONTENT)
 
 
-class FlexMatchTest(BaseCloudkitTest):
+class _BaseFlexmatchTest(BaseCloudkitTest):
+    def _initiate_matchmaking(self):
+        user_name = self.make_player()
+        with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
+            ticket = self.post(self.endpoints["flexmatch"], data={"matchmaker": "unittest"},
+                               expected_status_code=http_client.OK).json()
+        return user_name, ticket
+
+    @staticmethod
+    def _get_event_details(ticket_id, player_info):
+        players = [player_info]
+        return {
+            "type": "",
+            "matchId": "0a3eb4aa-ecdb-4595-81a0-ad2b2d61bd05",
+            "gameSessionInfo": {
+                "ipAddress": None,
+                "port": None,
+                "players": players
+            },
+            "tickets": [{
+                "ticketId": ticket_id,
+                "players": players
+            }]
+        }
+
+    @contextlib.contextmanager
+    def _managed_bearer_token_user(self):
+        # FIXME: this whole thing is pretty much a c/p from test_jwt; consolidate.
+        self._access_key = str(uuid.uuid4())[:12]
+        self._user_name = "testuser_{}".format(self._access_key[:4])
+        self._role_name = "flexmatch_event"
+        try:
+            self._setup_service_user_with_bearer_token()
+            self.headers["Authorization"] = f"Bearer {self._access_key}"
+            yield
+        finally:
+            self._remove_service_user_with_bearer_token()
+            del self.headers["Authorization"]
+
+    def _setup_service_user_with_bearer_token(self):
+        # FIXME: Might be cleaner to use patching instead of populating the actual config. The upside with using config
+        #  is that it exposes the intended use case more clearly
+        conf = get_config()
+        ts = conf.table_store
+        # setup access roles
+        ts.get_table("access-roles").add({
+            "role_name": self._role_name,
+            "deployable_name": conf.deployable["deployable_name"]
+        })
+        # Setup a user with an access key
+        ts.get_table("users").add({
+            "user_name": self._user_name,
+            "password": self._access_key,
+            "access_key": self._access_key,
+            "is_active": True,
+            "is_role_admin": False,
+            "is_service": True,
+            "organization_name": conf.organization["organization_name"]
+        })
+        # Associate the bunch.
+        ts.get_table("users-acl").add({
+            "organization_name": conf.organization["organization_name"],
+            "user_name": self._user_name,
+            "role_name": self._role_name,
+            "tenant_name": conf.tenant["tenant_name"]
+        })
+
+    def _remove_service_user_with_bearer_token(self):
+        conf = get_config()
+        ts = conf.table_store
+        ts.get_table("users-acl").remove({
+            "organization_name": conf.organization["organization_name"],
+            "user_name": self._user_name,
+            "role_name": self._role_name,
+            "tenant_name": conf.tenant["tenant_name"]
+        })
+        ts.get_table("users").remove({
+            "user_name": self._user_name,
+            "access_key": self._access_key,
+            "is_active": True,
+            "is_role_admin": False,
+            "is_service": True,
+            "organization_name": conf.organization["organization_name"]
+        })
+        ts.get_table("access-roles").remove({
+            "role_name": self._role_name,
+            "deployable_name": conf.deployable["deployable_name"],
+            "description": "a throwaway test role"
+        })
+        delattr(self, '_access_key')
+        delattr(self, '_user_name')
+        delattr(self, '_role_name')
+
+
+class FlexMatchTest(_BaseFlexmatchTest):
     # NOTE TO SELF:  The idea behind splitting the api tests from this class was to be able to test the flexmatch
     # module functions separately from the rest endpoints.  I've got a mocked application context with a fake redis
     # setup stashed away, allowing code like
@@ -61,30 +156,22 @@ class FlexMatchTest(BaseCloudkitTest):
             self.assertEqual(response.json()[REGION], expected_avg[i])
 
     def test_start_matchmaking(self):
-        self.make_player()
-        flexmatch_url = self.endpoints["flexmatch"]
-        with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
-            response = self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
-            self.assertTrue(response["Status"] == "QUEUED")
+        _, ticket = self._initiate_matchmaking()
+        self.assertTrue(ticket["Status"] == "QUEUED")
 
     def test_start_matchmaking_doesnt_modify_ticket_if_same_player_reissues_request(self):
-        self.make_player()
+        _, ticket = self._initiate_matchmaking()
+        first_id = ticket["TicketId"]
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
-            response1 = self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
-            first_id = response1["TicketId"]
-            response2 = self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
-            second_id = response2["TicketId"]
-            self.assertEqual(first_id, second_id)
+            second_id = self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()["TicketId"]
+        self.assertEqual(first_id, second_id)
 
     def test_start_matchmaking_creates_event(self):
-        self.make_player()
-        flexmatch_url = self.endpoints["flexmatch"]
-        with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
-            self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
-            notification, message_number = self.get_player_notification("matchmaking", "MatchmakingStarted")
-            self.assertIsInstance(notification, dict)
-            self.assertTrue(notification["event"] == "MatchmakingStarted")
+        _, ticket = self._initiate_matchmaking()
+        notification, message_number = self.get_player_notification("matchmaking", "MatchmakingStarted")
+        self.assertIsInstance(notification, dict)
+        self.assertTrue(notification["event"] == "MatchmakingStarted")
 
     def test_matchmaking_includes_party_members(self):
         # Create a party of 2
@@ -129,7 +216,7 @@ class FlexMatchTest(BaseCloudkitTest):
         self.assertTrue(notification["event"] == "MatchmakingStarted")
 
     def test_delete_ticket(self):
-        self.make_player()
+        player_name = self.make_player()
         flexmatch_url = self.endpoints["flexmatch"]
         with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
             # delete without a ticket, expect NOT_FOUND
@@ -144,6 +231,20 @@ class FlexMatchTest(BaseCloudkitTest):
             # Check that the ticket is indeed gone
             response = self.get(flexmatch_url, expected_status_code=http_client.OK)
             self.assertDictEqual(response.json(), {})
+            # Test that a ticket in 'matched' state doesn't get deleted
+            response = self.post(flexmatch_url, data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
+            events_url = self.endpoints["flexmatch"] + "events"
+            data = copy.copy(_matchmaking_event_template)
+            details = self._get_event_details(response["TicketId"], {"playerId": str(self.player_id), "team": "winners"})
+            details["type"] = "PotentialMatchCreated"
+            details["acceptanceRequired"] = True
+            details["acceptanceTimeout"] = 123
+            data["detail"] = details
+            with self._managed_bearer_token_user():
+                self.put(events_url, data=data, expected_status_code=http_client.OK)
+            self.auth(player_name)
+            response = self.delete(flexmatch_url, expected_status_code=http_client.OK).json()
+            self.assertEqual(response["Status"], "REQUIRES_ACCEPTANCE")
 
     def test_party_member_can_delete_ticket(self):
         # Create a party of 2
@@ -194,7 +295,7 @@ class FlexMatchTest(BaseCloudkitTest):
             self.assertIsInstance(notification, dict)
             self.assertTrue(notification["event"] == "MatchmakingStopped")
 
-class FlexMatchEventTest(BaseCloudkitTest):
+class FlexMatchEventTest(_BaseFlexmatchTest):
     def test_searching_event(self):
         user_name, ticket = self._initiate_matchmaking()
         events_url = self.endpoints["flexmatch"] + "events"
@@ -414,96 +515,6 @@ class FlexMatchEventTest(BaseCloudkitTest):
         self.assertIsInstance(notification, dict)
         self.assertEqual(notification["data"]["reason"], details["reason"])
 
-    def _initiate_matchmaking(self):
-        user_name = self.make_player()
-        with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
-            ticket = self.post(self.endpoints["flexmatch"], data={"matchmaker": "unittest"}, expected_status_code=http_client.OK).json()
-        return user_name, ticket
-
-    @staticmethod
-    def _get_event_details(ticket_id, player_info):
-        players = [player_info]
-        return {
-            "type": "",
-            "matchId": "0a3eb4aa-ecdb-4595-81a0-ad2b2d61bd05",
-            "gameSessionInfo": {
-                "ipAddress": None,
-                "port": None,
-                "players": players
-            },
-            "tickets": [{
-                "ticketId": ticket_id,
-                "players": players
-            }]
-        }
-
-    @contextlib.contextmanager
-    def _managed_bearer_token_user(self):
-        # FIXME: this whole thing is pretty much a c/p from test_jwt; consolidate.
-        self._access_key = str(uuid.uuid4())[:12]
-        self._user_name = "testuser_{}".format(self._access_key[:4])
-        self._role_name = "flexmatch_event"
-        try:
-            self._setup_service_user_with_bearer_token()
-            self.headers["Authorization"] = f"Bearer {self._access_key}"
-            yield
-        finally:
-            self._remove_service_user_with_bearer_token()
-            del self.headers["Authorization"]
-
-    def _setup_service_user_with_bearer_token(self):
-        # FIXME: Might be cleaner to use patching instead of populating the actual config. The upside with using config
-        #  is that it exposes the intended use case more clearly
-        conf = get_config()
-        ts = conf.table_store
-        # setup access roles
-        ts.get_table("access-roles").add({
-            "role_name": self._role_name,
-            "deployable_name": conf.deployable["deployable_name"]
-        })
-        # Setup a user with an access key
-        ts.get_table("users").add({
-            "user_name": self._user_name,
-            "password": self._access_key,
-            "access_key": self._access_key,
-            "is_active": True,
-            "is_role_admin": False,
-            "is_service": True,
-            "organization_name": conf.organization["organization_name"]
-        })
-        # Associate the bunch.
-        ts.get_table("users-acl").add({
-            "organization_name": conf.organization["organization_name"],
-            "user_name": self._user_name,
-            "role_name": self._role_name,
-            "tenant_name": conf.tenant["tenant_name"]
-        })
-
-    def _remove_service_user_with_bearer_token(self):
-        conf = get_config()
-        ts = conf.table_store
-        ts.get_table("users-acl").remove({
-            "organization_name": conf.organization["organization_name"],
-            "user_name": self._user_name,
-            "role_name": self._role_name,
-            "tenant_name": conf.tenant["tenant_name"]
-        })
-        ts.get_table("users").remove({
-            "user_name": self._user_name,
-            "access_key": self._access_key,
-            "is_active": True,
-            "is_role_admin": False,
-            "is_service": True,
-            "organization_name": conf.organization["organization_name"]
-        })
-        ts.get_table("access-roles").remove({
-            "role_name": self._role_name,
-            "deployable_name": conf.deployable["deployable_name"],
-            "description": "a throwaway test role"
-        })
-        delattr(self, '_access_key')
-        delattr(self, '_user_name')
-        delattr(self, '_role_name')
 
 class MockGameLiftClient(object):
     def __init__(self, *args, **kwargs):
