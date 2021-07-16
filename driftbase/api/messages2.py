@@ -1,6 +1,7 @@
 """
     Message box, mostly meant for client-to-client communication
 """
+import http.client
 
 import collections
 import copy
@@ -62,6 +63,14 @@ def is_key_legal(key):
     return True
 
 
+def convert(data):
+    if isinstance(data, bytes): return data.decode()
+    if isinstance(data, dict): return dict(map(convert, data.items()))
+    if isinstance(data, tuple): return tuple(map(convert, data))
+    if isinstance(data, list): return list(map(convert, data))
+    return data
+
+
 def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     messages = []
     redis_messages_key = g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id))
@@ -81,13 +90,6 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     highest_processed_message_id = b'0'
 
     content = g.redis.conn.xread({redis_messages_key: messages_after_id}, count=rows, block=1)
-
-    def convert(data):
-        if isinstance(data, bytes): return data.decode()
-        if isinstance(data, dict): return dict(map(convert, data.items()))
-        if isinstance(data, tuple): return tuple(map(convert, data))
-        if isinstance(data, list): return list(map(convert, data))
-        return data
 
     now = utcnow()
     expired_ids = []
@@ -114,6 +116,7 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     # If there were only expired messages, make sure we skip those next time
     if len(messages) == 0 and highest_processed_message_id != b'0':
         g.redis.conn.set(redis_seen_key, highest_processed_message_id)
+
     if expired_ids:
         g.redis.conn.xdel(redis_messages_key, expired_ids)
 
@@ -218,10 +221,20 @@ class MessagesQueue2PostArgs(ma.Schema):
     expire = ma.fields.Integer()
 
 
+class MessagesQueue2PostResponse(ma.Schema):
+    exchange = ma.fields.String()
+    exchange_id = ma.fields.Integer()
+    queue = ma.fields.String()
+    payload = ma.fields.Dict()
+    expire_seconds = ma.fields.String()
+    url = ma.fields.Url()
+
+
 @bp.route('/<string:exchange>/<int:exchange_id>/<string:queue>', endpoint='queue')
 class MessagesQueueAPI2(MethodView):
 
     @bp.arguments(MessagesQueue2PostArgs)
+    @bp.response(http.client.CREATED, MessagesQueue2PostResponse)
     def post(self, args, exchange, exchange_id, queue):
         check_can_use_exchange(exchange, exchange_id, read=False)
         expire_seconds = args.get("expire") or DEFAULT_EXPIRE_SECONDS
@@ -243,8 +256,7 @@ class MessagesQueueAPI2(MethodView):
             expire_seconds
         )
 
-        ret = copy.copy(message_info)
-        ret["url"] = url_for(
+        resource_url = url_for(
             "messages2.message",
             exchange=exchange,
             exchange_id=exchange_id,
@@ -253,7 +265,14 @@ class MessagesQueueAPI2(MethodView):
             _external=True
         )
 
-        return jsonify(ret)
+        ret = copy.copy(message_info)
+        ret['url'] = resource_url
+
+        response_headers = {
+            'Location': resource_url
+        }
+        return ret, http.client.CREATED, response_headers
+
 
 def post_message(exchange, exchange_id, queue, payload, expire_seconds=None, sender_system=False):
     if not is_key_legal(exchange) or not is_key_legal(queue):
@@ -280,16 +299,28 @@ def post_message(exchange, exchange_id, queue, payload, expire_seconds=None, sen
     }
 
 
+class MessageQueueAPI2Response(ma.Schema):
+    exchange = ma.fields.String()
+    exchange_id = ma.fields.Integer()
+    queue = ma.fields.String()
+    payload = ma.fields.Dict()
+    expire_seconds = ma.fields.String()
+    message_id = ma.fields.String()
+
+
 @bp.route('/<string:exchange>/<int:exchange_id>/<string:queue>/<string:message_id>', endpoint='message')
 class MessageQueueAPI2(MethodView):
 
+    @bp.response(http.client.OK, MessageQueueAPI2Response)
     def get(self, exchange, exchange_id, queue, message_id):
         check_can_use_exchange(exchange, exchange_id, read=True)
 
-        key = "messages2:%s-%s:%s:%s" % (exchange, exchange_id, queue, message_id)
-        val = g.redis.get(key)
+        key = g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id))
+        val = g.redis.conn.xrange(key, min=message_id, max=message_id, count=1)
         if val:
-            return jsonify(json.loads(val))
+            converted = convert(val[0][1])
+            converted['payload'] = json.loads(converted['payload'])
+            return jsonify(converted)
         else:
             abort(http_client.NOT_FOUND)
 
