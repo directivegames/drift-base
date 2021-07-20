@@ -1,5 +1,5 @@
 import urllib
-import http.client as http_client
+import http.client
 
 from driftbase.utils.test_utils import BaseCloudkitTest
 
@@ -21,15 +21,15 @@ class MessagesTest(BaseCloudkitTest):
 
         messagequeue_url = messagequeue_url_template.format(queue="testqueue")
         data = {"message": {"Hello": "World"}}
-        r = self.post(messagequeue_url, data=data)
+        r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED)
         message_url = r.json()["url"]
 
         # we should not be able to read the message back, only the recipient can do that
-        r = self.get(message_url, expected_status_code=http_client.BAD_REQUEST)
+        r = self.get(message_url, expected_status_code=http.client.BAD_REQUEST)
         self.assertIn("that belongs to you", r.json()["error"]["description"])
 
         # we should not be able to read anything from the exchange either
-        r = self.get(messages_url, expected_status_code=http_client.BAD_REQUEST)
+        r = self.get(messages_url, expected_status_code=http.client.BAD_REQUEST)
         self.assertIn("that belongs to you", r.json()["error"]["description"])
 
     def test_messages_receive(self):
@@ -48,7 +48,7 @@ class MessagesTest(BaseCloudkitTest):
         data = {
             "message" : {"Hello": "World"}
         }
-        r = self.post(messagequeue_url, data=data).json()
+        r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED).json()
         message_url = r["url"]
 
         # switch to the receiver player
@@ -94,12 +94,12 @@ class MessagesTest(BaseCloudkitTest):
         othermessagequeue_url = messagequeue_url_template.format(queue=otherqueue)
         otherdata = {"message": {"Hello": "OtherWorld"}}
 
-        r = self.post(messagequeue_url, data=data)
+        r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED)
         first_message_id = r.json()["message_id"]
-        r = self.post(othermessagequeue_url, data=otherdata)
+        r = self.post(othermessagequeue_url, data=otherdata, expected_status_code=http.client.CREATED)
         second_message_id = r.json()["message_id"]
-        r = self.post(messagequeue_url, data=data)
-        r = self.post(othermessagequeue_url, data=otherdata)
+        r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED)
+        r = self.post(othermessagequeue_url, data=otherdata, expected_status_code=http.client.CREATED)
 
         top_message_id = r.json()["message_id"]
 
@@ -148,11 +148,11 @@ class MessagesTest(BaseCloudkitTest):
         otherqueue = "othertestqueue"
         othermessagequeue_url = messagequeue_url_template.format(queue=otherqueue)
         otherdata = {"message": {"Hello": "OtherWorld"}}
-        r = self.post(messagequeue_url, data=data)
-        r = self.post(othermessagequeue_url, data=otherdata)
-        r = self.post(messagequeue_url, data=data)
+        r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED)
+        r = self.post(othermessagequeue_url, data=otherdata, expected_status_code=http.client.CREATED)
+        r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED)
         before_end_message_id = r.json()["message_id"]
-        r = self.post(othermessagequeue_url, data=otherdata)
+        r = self.post(othermessagequeue_url, data=otherdata, expected_status_code=http.client.CREATED)
         last_message_id = r.json()["message_id"]
 
         # switch to the receiver player
@@ -189,9 +189,9 @@ class MessagesTest(BaseCloudkitTest):
         player_sender = self.make_player()
 
         # Post additional messages
-        r = self.post(othermessagequeue_url, data=otherdata)
+        r = self.post(othermessagequeue_url, data=otherdata, expected_status_code=http.client.CREATED)
         before_end_message_id = r.json()["message_id"]
-        r = self.post(othermessagequeue_url, data=otherdata)
+        r = self.post(othermessagequeue_url, data=otherdata, expected_status_code=http.client.CREATED)
         top_message_id = r.json()["message_id"]
 
         # switch to the receiver player
@@ -222,7 +222,7 @@ class MessagesTest(BaseCloudkitTest):
             messagequeue_url = messagequeue_url_template.format(queue="testqueue-%s" % i)
             for j in range(num_messages_per_queue):
                 data = {"message": {"Hello": "World", "queuenumber": i, "messagenumber": j}}
-                r = self.post(messagequeue_url, data=data)
+                r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED)
 
         # switch to the receiver player
         self.headers = receiver_headers
@@ -248,7 +248,7 @@ class MessagesTest(BaseCloudkitTest):
         player_sender = self.make_player()
         messagequeue_url = messagequeue_url_template.format(queue="testqueue")
         data = {"message": {"Hello": "World"}}
-        r = self.post(messagequeue_url, data=data)
+        r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED)
         message_url = r.json()["url"]
 
         # switch to the receiver player

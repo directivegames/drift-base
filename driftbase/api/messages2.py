@@ -227,6 +227,7 @@ class MessagesQueue2PostResponse(ma.Schema):
     queue = ma.fields.String()
     payload = ma.fields.Dict()
     expire_seconds = ma.fields.String()
+    message_id = ma.fields.String()
     url = ma.fields.Url()
 
 
@@ -237,27 +238,27 @@ class MessagesQueueAPI2(MethodView):
     @bp.response(http.client.CREATED, MessagesQueue2PostResponse)
     def post(self, args, exchange, exchange_id, queue):
         check_can_use_exchange(exchange, exchange_id, read=False)
-        expire_seconds = args.get("expire") or DEFAULT_EXPIRE_SECONDS
+        expire_seconds = args.get('expire') or DEFAULT_EXPIRE_SECONDS
 
         message_info = post_message(
             exchange=exchange,
             exchange_id=exchange_id,
             queue=queue,
-            payload=args["message"],
+            payload=args['message'],
             expire_seconds=expire_seconds,
         )
 
         log.debug(
             "Message %s has been added to queue '%s' in exchange "
             "'%s-%s' by player %s. It will expire on '%s'",
-            message_info["message_id"],
+            message_info['message_id'],
             queue, exchange, exchange_id,
-            current_user["player_id"] if current_user else None,
+            current_user['player_id'] if current_user else None,
             expire_seconds
         )
 
         resource_url = url_for(
-            "messages2.message",
+            'messages2.message',
             exchange=exchange,
             exchange_id=exchange_id,
             queue=queue,
