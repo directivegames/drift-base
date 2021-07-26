@@ -35,7 +35,8 @@ def drift_init_extension(app, api, **kwargs):
 
 # messages expire in a day by default
 DEFAULT_EXPIRE_SECONDS = 60 * 60 * 24
-
+# prune a player's message list if they're not listening
+MAX_PENDING_MESSAGES = 100
 
 # for mocking
 def utcnow():
@@ -286,8 +287,7 @@ def post_message(exchange, exchange_id, queue, payload, expire_seconds=None, sen
         'exchange_id': exchange_id,
     }
 
-    # TODO: What should maxLen be?
-    message_id = g.redis.conn.xadd(g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id)), message)
+    message_id = g.redis.conn.xadd(g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id)), message, id='*', maxlen=MAX_PENDING_MESSAGES)
 
     return {
         'message_id': message_id
