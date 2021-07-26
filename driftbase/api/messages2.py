@@ -38,8 +38,6 @@ def drift_init_extension(app, api, **kwargs):
 
 # messages expire in a day by default
 DEFAULT_EXPIRE_SECONDS = 60 * 60 * 24
-# keep the top message around for a month
-MESSAGE_EXCHANGE_TTL = 60 * 60 * 24 * 30
 
 
 # for mocking
