@@ -73,19 +73,18 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     messages = []
     redis_messages_key = g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id))
     redis_seen_key = g.redis.make_key("messages2:seen:%s-%s" % (exchange, exchange_id))
-    if isinstance(messages_after_id, str): messages_after_id = messages_after_id.encode()
 
     my_player_id = None
     if current_user:
         my_player_id = current_user["player_id"]
 
     seen_message_id = g.redis.conn.get(redis_seen_key)
-    if messages_after_id == b'0' and seen_message_id:
+    if messages_after_id == '0' and seen_message_id:
         messages_after_id = seen_message_id
     else:
         g.redis.conn.set(redis_seen_key, messages_after_id)
 
-    highest_processed_message_id = b'0'
+    highest_processed_message_id = '0'
 
     content = g.redis.conn.xread({redis_messages_key: messages_after_id}, count=rows, block=1)
 
@@ -95,7 +94,7 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
         for message_id, message_bytes in content[0][1]:
             message = convert(message_bytes)
             message['payload'] = json.loads(message['payload'])
-            message['message_id'] = message_id.decode()
+            message['message_id'] = message_id
             highest_processed_message_id = message_id
             expires = datetime.datetime.fromisoformat(message["expires"][:-1]) # remove trailing 'Z'
             if expires > now:
@@ -112,7 +111,7 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
                           message['queue'], exchange, exchange_id, my_player_id)
 
     # If there were only expired messages, make sure we skip those next time
-    if len(messages) == 0 and highest_processed_message_id != b'0':
+    if len(messages) == 0 and highest_processed_message_id != '0':
         g.redis.conn.set(redis_seen_key, highest_processed_message_id)
 
     if expired_ids:
@@ -294,7 +293,7 @@ def post_message(exchange, exchange_id, queue, payload, expire_seconds=None, sen
     message_id = g.redis.conn.xadd(g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id)), message)
 
     return {
-        'message_id': message_id.decode()
+        'message_id': message_id
     }
 
 
