@@ -1,6 +1,7 @@
 import urllib
 import http.client
 
+from driftbase.api.messages2 import _next_message_id
 from driftbase.utils.test_utils import BaseCloudkitTest
 
 
@@ -202,9 +203,9 @@ class MessagesTest(BaseCloudkitTest):
         js = r.json()
         self.assertEqual(len(js), 1)
         self.assertEqual(len(js[otherqueue]), 2)
-        # Messages are returned newest first
-        self.assertEqual(js[otherqueue][0]["message_id"], top_message_id)
-        self.assertEqual(js[otherqueue][1]["message_id"], before_end_message_id)
+        # Messages are returned oldest first
+        self.assertEqual(js[otherqueue][0]["message_id"], before_end_message_id)
+        self.assertEqual(js[otherqueue][1]["message_id"], top_message_id)
 
     def test_messages_multiplequeues(self):
         player_receiver = self.make_player()
@@ -260,3 +261,8 @@ class MessagesTest(BaseCloudkitTest):
         self.assertEqual(len(r.json()["testqueue"]), 1)
         self.assertIn("payload", r.json()["testqueue"][0])
         self.assertIn("Hello", r.json()["testqueue"][0]["payload"])
+
+    def test_message_id(self):
+        self.assertEqual("0-1", _next_message_id("0-0"))
+        self.assertEqual("0-541", _next_message_id("0-540"))
+        self.assertEqual("12345-1", _next_message_id("12345-0"))

@@ -67,11 +67,17 @@ def convert(data):
     return data
 
 
+def _next_message_id(message_id):
+    id_parts = message_id.split('-')
+    if len(id_parts) == 2:
+        id_parts[1] = f"{int(id_parts[1]) + 1}"
+    return '-'.join(id_parts)
+
+
 def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     messages = []
     redis_messages_key = g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id))
     redis_seen_key = g.redis.make_key("messages2:seen:%s-%s" % (exchange, exchange_id))
-
     my_player_id = None
     if current_user:
         my_player_id = current_user["player_id"]
@@ -84,12 +90,13 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
 
     highest_processed_message_id = '0'
 
-    content = g.redis.conn.xread({redis_messages_key: messages_after_id}, count=rows, block=1)
+    from_message_id = _next_message_id(messages_after_id)
+    content = g.redis.conn.xrange(redis_messages_key, min=from_message_id, max='+', count=rows)
 
     now = utcnow()
     expired_ids = []
     if len(content):
-        for message_id, message_bytes in content[0][1]:
+        for message_id, message_bytes in content:
             message = convert(message_bytes)
             message['payload'] = json.loads(message['payload'])
             message['message_id'] = message_id
@@ -112,10 +119,10 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     if len(messages) == 0 and highest_processed_message_id != '0':
         g.redis.conn.set(redis_seen_key, highest_processed_message_id)
 
+    # Delete expired messages
     if expired_ids:
         g.redis.conn.xdel(redis_messages_key, expired_ids)
 
-    messages.sort(key=operator.itemgetter('message_id'), reverse=True)
     ret = collections.defaultdict(list)
     for m in messages:
         ret[m['queue']].append(m)
@@ -159,7 +166,7 @@ class MessagesExchangeAPI2(MethodView):
 
         args = self.get_args.parse_args()
         timeout = args.timeout or 0
-        min_message_number = args.messages_after or '0'
+        messages_after = args.messages_after or '0'
         rows = args.rows
         if rows:
             rows = int(rows)
@@ -185,7 +192,7 @@ class MessagesExchangeAPI2(MethodView):
                 yield " "
                 while 1:
                     try:
-                        messages = fetch_messages(exchange, exchange_id, min_message_number, rows)
+                        messages = fetch_messages(exchange, exchange_id, messages_after, rows)
                         if messages:
                             log.debug("[%s/%s] Returning messages after %.1f seconds",
                                       my_player_id, exchange_full_name,
@@ -207,7 +214,7 @@ class MessagesExchangeAPI2(MethodView):
 
             return Response(stream_with_context(streamer()), mimetype="application/json")
         else:
-            messages = fetch_messages(exchange, exchange_id, min_message_number, rows)
+            messages = fetch_messages(exchange, exchange_id, messages_after, rows)
             return jsonify(messages)
 
 
