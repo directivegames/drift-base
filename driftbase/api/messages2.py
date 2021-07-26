@@ -1,32 +1,29 @@
 """
     Message box, mostly meant for client-to-client communication
 """
-import http.client
+import copy
 
 import collections
-import copy
 import datetime
+import gevent
+import http.client
+import http.client as http_client
 import json
 import logging
-import operator
-import sys
-import uuid
-
-import gevent
 import marshmallow as ma
-from drift.core.extensions.jwt import current_user
-from drift.core.extensions.urlregistry import Endpoints
+import operator
 from flask import g, url_for, stream_with_context, Response, jsonify
 from flask.views import MethodView
 from flask_restx import reqparse
 from flask_smorest import Blueprint, abort
-import http.client as http_client
+
+from drift.core.extensions.jwt import current_user
+from drift.core.extensions.urlregistry import Endpoints
 
 log = logging.getLogger(__name__)
 
 bp = Blueprint("messages2", __name__, url_prefix="/messages2",
                description="Message box, mostly meant for client-to-client communication")
-
 
 endpoints = Endpoints()
 
@@ -96,17 +93,17 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
             message['payload'] = json.loads(message['payload'])
             message['message_id'] = message_id
             highest_processed_message_id = message_id
-            expires = datetime.datetime.fromisoformat(message["expires"][:-1]) # remove trailing 'Z'
+            expires = datetime.datetime.fromisoformat(message["expires"][:-1])  # remove trailing 'Z'
             if expires > now:
                 messages.append(message)
                 log.debug("Message %s has been retrieved from queue '%s' in "
-                         "exchange '%s-%s' by player %s",
+                          "exchange '%s-%s' by player %s",
                           message['message_id'],
                           message['queue'], exchange, exchange_id, my_player_id)
             else:
                 expired_ids += message_id
                 log.debug("Expired message %s was removed from queue '%s' in "
-                         "exchange '%s-%s' by player %s",
+                          "exchange '%s-%s' by player %s",
                           message['message_id'],
                           message['queue'], exchange, exchange_id, my_player_id)
 
@@ -196,8 +193,8 @@ class MessagesExchangeAPI2(MethodView):
                             return
                         elif utcnow() > poll_timeout:
                             log.debug("[%s/%s] Poll timeout with no messages after %.1f seconds",
-                                     my_player_id, exchange_full_name,
-                                     (utcnow() - start_time).total_seconds())
+                                      my_player_id, exchange_full_name,
+                                      (utcnow() - start_time).total_seconds())
                             yield json.dumps({})
                             return
                         # sleep for 100ms
@@ -327,5 +324,5 @@ class MessageQueueAPI2(MethodView):
 def endpoint_info(*args):
     return {
         "my_messages2": url_for("messages2.exchange", exchange="players", exchange_id=current_user["player_id"],
-                               _external=True) if current_user else None
+                                _external=True) if current_user else None
     }
