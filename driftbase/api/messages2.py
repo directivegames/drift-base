@@ -152,6 +152,19 @@ def check_can_use_exchange(exchange, exchange_id, read=False):
                   message="You can only read from an exchange that belongs to you!")
 
 
+class MessageExchangeAPI2GetResponseItem(ma.Schema):
+    exchange = ma.fields.String()
+    exchange_id = ma.fields.Integer()
+    queue = ma.fields.String()
+    payload = ma.fields.Dict()
+    expire_seconds = ma.fields.String()
+    message_id = ma.fields.String()
+
+
+class MessageExchangeAPI2GetResponse(ma.Schema):
+    data = ma.fields.Dict(keys=ma.fields.Str(), values=ma.fields.List(ma.fields.Nested(MessageExchangeAPI2GetResponseItem)))
+
+
 @bp.route('/<string:exchange>/<int:exchange_id>', endpoint='exchange')
 class MessagesExchangeAPI2(MethodView):
     no_jwt_check = ["GET"]
@@ -161,6 +174,7 @@ class MessagesExchangeAPI2(MethodView):
     get_args.add_argument("messages_after", type=str)
     get_args.add_argument("rows", type=int)
 
+    @bp.response(http.client.OK, MessageExchangeAPI2GetResponse)
     def get(self, exchange, exchange_id):
         check_can_use_exchange(exchange, exchange_id, read=True)
 
@@ -184,6 +198,7 @@ class MessagesExchangeAPI2(MethodView):
         start_time = utcnow()
         poll_timeout = utcnow()
 
+        res = dict(data={})
         if timeout > 0:
             poll_timeout += datetime.timedelta(seconds=timeout)
             log.debug("[%s] Long poll - Waiting %s seconds for messages...", my_player_id, timeout)
@@ -203,19 +218,20 @@ class MessagesExchangeAPI2(MethodView):
                             log.debug("[%s/%s] Poll timeout with no messages after %.1f seconds",
                                       my_player_id, exchange_full_name,
                                       (utcnow() - start_time).total_seconds())
-                            yield json.dumps({})
+                            yield res
                             return
                         # sleep for 100ms
                         gevent.sleep(0.1)
                         yield " "
                     except Exception as e:
                         log.error("[%s/%s] Exception %s", my_player_id, exchange_full_name, repr(e))
-                        yield json.dumps({})
+                        yield res
 
             return Response(stream_with_context(streamer()), mimetype="application/json")
         else:
             messages = fetch_messages(exchange, exchange_id, messages_after, rows)
-            return jsonify(messages)
+            res['data'] = messages
+            return res
 
 
 class MessagesQueue2PostArgs(ma.Schema):

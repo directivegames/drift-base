@@ -60,17 +60,17 @@ class MessagesTest(BaseCloudkitTest):
         #r = self.get(message_url).json()
 
         # get all the messages for the player
-        r = self.get(messages_url).json()
+        r = self.get(messages_url).json()['data']
         self.assertIn("testqueue", r)
         self.assertEqual(len(r["testqueue"]), 1)
         self.assertIn("payload", r["testqueue"][0])
         self.assertIn("Hello", r["testqueue"][0]["payload"])
 
         # get all the messages for the player again and make sure we're receiving the same thing
-        self.assertEqual(self.get(messages_url).json(), r)
+        self.assertEqual(self.get(messages_url).json()['data'], r)
 
         # get the messages and this time clear them as well
-        r = self.get(messages_url + "?delete=true").json()
+        r = self.get(messages_url + "?delete=true").json()['data']
         self.assertIn("testqueue", r)
         self.assertEqual(len(r["testqueue"]), 1)
         self.assertIn("payload", r["testqueue"][0])
@@ -109,14 +109,14 @@ class MessagesTest(BaseCloudkitTest):
 
         # get all messages
         r = self.get(messages_url)
-        js = r.json()
+        js = r.json()['data']
         self.assertEqual(len(js), 2)
         self.assertEqual(len(js[queue]), 2)
         self.assertEqual(len(js[otherqueue]), 2)
 
         # get 1 row and verify that it is the first one
         r = self.get(messages_url + "?rows=1")
-        js = r.json()
+        js = r.json()['data']
         self.assertEqual(len(js), 1)
         self.assertNotIn(otherqueue, js)
         self.assertEqual(len(js[queue]), 1)
@@ -124,7 +124,7 @@ class MessagesTest(BaseCloudkitTest):
 
         # get 2 rows and verify that we have one from each queue
         r = self.get(messages_url + "?rows=2")
-        js = r.json()
+        js = r.json()['data']
         self.assertEqual(len(js), 2)
         self.assertEqual(len(js[queue]), 1)
         self.assertEqual(js[queue][0]["message_id"], first_message_id)
@@ -162,7 +162,7 @@ class MessagesTest(BaseCloudkitTest):
         # get only the top row and verify that it is correct, each time
         for i in range(0, 2):
             r = self.get(messages_url + "?messages_after=%s" % before_end_message_id)
-            js = r.json()
+            js = r.json()['data']
             # Check we got one queue
             self.assertEqual(len(js), 1)
             # Check we got one message in the queue
@@ -173,17 +173,17 @@ class MessagesTest(BaseCloudkitTest):
 
         # if we get by a larger number we should get nothing
         r = self.get(messages_url + "?messages_after=%s" % last_message_id)
-        js = r.json()
+        js = r.json()['data']
         self.assertEqual(js, {})
 
         # if we get by zero we should get nothing, as we've previously acknowledged a valid top number
         r = self.get(messages_url + "?messages_after=%s" % '0')
-        js = r.json()
+        js = r.json()['data']
         self.assertEqual(js, {})
 
         # if we get without a message number should get nothing, as we've previously acknowledged a valid top number
         r = self.get(messages_url)
-        js = r.json()
+        js = r.json()['data']
         self.assertEqual(js, {})
 
         # Send additional messages
@@ -200,7 +200,7 @@ class MessagesTest(BaseCloudkitTest):
 
         # get by zero should now return the two messages sent since last time
         r = self.get(messages_url + "?messages_after=%s" % (0))
-        js = r.json()
+        js = r.json()['data']
         self.assertEqual(len(js), 1)
         self.assertEqual(len(js[otherqueue]), 2)
         # Messages are returned oldest first
@@ -211,10 +211,10 @@ class MessagesTest(BaseCloudkitTest):
         player_receiver = self.make_player()
         receiver_headers = self.headers
         player_receiver_endpoint = self.endpoints["my_player"]
-        r = self.get(player_receiver_endpoint)
-        messagequeue_url_template = r.json()["messagequeue2_url"]
+        r = self.get(player_receiver_endpoint).json()
+        messagequeue_url_template = r["messagequeue2_url"]
         messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
-        messages_url = r.json()["messages2_url"]
+        messages_url = r["messages2_url"]
 
         player_sender = self.make_player()
         num_queues = 5
@@ -229,10 +229,10 @@ class MessagesTest(BaseCloudkitTest):
         self.headers = receiver_headers
 
         # get all the queues and delete them
-        r = self.get(messages_url)
+        r = self.get(messages_url).json()['data']
 
-        self.assertEqual(len(r.json()), num_queues)
-        for queue, messages in r.json().items():
+        self.assertEqual(len(r), num_queues)
+        for queue, messages in r.items():
             self.assertEqual(len(messages), num_messages_per_queue)
 
     def test_messages_longpoll(self):
