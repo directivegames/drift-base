@@ -73,14 +73,14 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     if current_user:
         my_player_id = current_user["player_id"]
 
-    redis_messages_key = g.redis.make_key("messages2:%s:%s" % (exchange, exchange_id))
-    redis_seen_key = g.redis.make_key("messages2:seen:%s:%s" % (exchange, exchange_id))
+    redis_messages_key = g.redis.make_key(f"messages2:{exchange}:{exchange_id}:")
+    redis_seen_key = g.redis.make_key(f"messages2:seen:{exchange}:")
 
-    seen_message_id = g.redis.conn.get(redis_seen_key)
+    seen_message_id = g.redis.conn.hget(redis_seen_key, exchange_id)
     if messages_after_id == '0' and seen_message_id:
         messages_after_id = seen_message_id
     else:
-        g.redis.conn.set(redis_seen_key, messages_after_id)
+        g.redis.conn.hset(redis_seen_key, exchange_id, messages_after_id)
 
     now = utcnow()
     messages = []
@@ -111,7 +111,7 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     with g.redis.conn.pipeline() as pipe:
         # If there were only expired messages, make sure we skip those next time
         if len(messages) == 0 and highest_processed_message_id != '0':
-            pipe.set(redis_seen_key, highest_processed_message_id)
+            pipe.hset(redis_seen_key, exchange_id, highest_processed_message_id)
 
         # Delete expired messages
         if expired_ids:
@@ -306,7 +306,7 @@ def post_message(exchange, exchange_id, queue, payload, expire_seconds=None, sen
         'exchange_id': exchange_id,
     }
 
-    message_id = g.redis.conn.xadd(g.redis.make_key("messages2:%s:%s" % (exchange, exchange_id)), message, id='*', maxlen=MAX_PENDING_MESSAGES)
+    message_id = g.redis.conn.xadd(g.redis.make_key(f"messages2:{exchange}:{exchange_id}:"), message, id='*', maxlen=MAX_PENDING_MESSAGES)
 
     return {
         'message_id': message_id
@@ -329,7 +329,7 @@ class MessageQueueAPI2(MethodView):
     def get(self, exchange, exchange_id, queue, message_id):
         check_can_use_exchange(exchange, exchange_id, read=True)
 
-        key = g.redis.make_key("messages2:%s:%s" % (exchange, exchange_id))
+        key = g.redis.make_key(f"messages2:{exchange}:{exchange_id}:")
         val = g.redis.conn.xrange(key, min=message_id, max=message_id, count=1)
         if val:
             message = val[0][1]
