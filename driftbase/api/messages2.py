@@ -148,6 +148,12 @@ def check_can_use_exchange(exchange, exchange_id, read=False):
                   message="You can only read from an exchange that belongs to you!")
 
 
+class MessageExchangeAPI2GetArgs(ma.Schema):
+    timeout = ma.fields.Integer(load_default=0)
+    messages_after = ma.fields.String(load_default='0')
+    rows = ma.fields.String(load_default=None)
+
+
 class MessageExchangeAPI2GetResponseItem(ma.Schema):
     exchange = ma.fields.String()
     exchange_id = ma.fields.Integer()
@@ -158,26 +164,22 @@ class MessageExchangeAPI2GetResponseItem(ma.Schema):
 
 
 class MessageExchangeAPI2GetResponse(ma.Schema):
-    data = ma.fields.Dict(keys=ma.fields.Str(), values=ma.fields.List(ma.fields.Nested(MessageExchangeAPI2GetResponseItem)))
+    data = ma.fields.Dict(keys=ma.fields.Str(),
+                          values=ma.fields.List(ma.fields.Nested(MessageExchangeAPI2GetResponseItem)))
 
 
 @bp.route('/<string:exchange>/<int:exchange_id>', endpoint='exchange')
 class MessagesExchangeAPI2(MethodView):
     no_jwt_check = ["GET"]
 
-    get_args = reqparse.RequestParser()
-    get_args.add_argument("timeout", type=int)
-    get_args.add_argument("messages_after", type=str)
-    get_args.add_argument("rows", type=int)
-
+    @bp.arguments(MessageExchangeAPI2GetArgs, location='query')
     @bp.response(http.client.OK, MessageExchangeAPI2GetResponse)
-    def get(self, exchange, exchange_id):
+    def get(self, args, exchange, exchange_id):
         check_can_use_exchange(exchange, exchange_id, read=True)
 
-        args = self.get_args.parse_args()
-        timeout = args.timeout or 0
-        messages_after = args.messages_after or '0'
-        rows = args.rows
+        timeout = args['timeout']
+        messages_after = args['messages_after']
+        rows = args['rows']
         if rows:
             rows = int(rows)
 
