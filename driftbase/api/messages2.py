@@ -23,7 +23,7 @@ from drift.core.extensions.urlregistry import Endpoints
 log = logging.getLogger(__name__)
 
 bp = Blueprint("messages2", __name__, url_prefix="/messages2",
-               description="Message box, mostly meant for client-to-client communication")
+               description="Service to player, and player to player message bus")
 
 endpoints = Endpoints()
 
