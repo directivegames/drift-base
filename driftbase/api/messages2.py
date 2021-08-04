@@ -11,10 +11,8 @@ import http.client as http_client
 import json
 import logging
 import marshmallow as ma
-import operator
-from flask import g, url_for, stream_with_context, Response, jsonify
+from flask import g, url_for, stream_with_context, Response
 from flask.views import MethodView
-from flask_restx import reqparse
 from flask_smorest import Blueprint, abort
 
 from drift.core.extensions.jwt import current_user
@@ -37,6 +35,7 @@ def drift_init_extension(app, api, **kwargs):
 DEFAULT_EXPIRE_SECONDS = 60 * 60 * 24
 # prune a player's message list if they're not listening
 MAX_PENDING_MESSAGES = 100
+
 
 # for mocking
 def utcnow():
@@ -170,7 +169,6 @@ class MessageExchangeAPI2GetResponse(ma.Schema):
 
 @bp.route('/<string:exchange>/<int:exchange_id>', endpoint='exchange')
 class MessagesExchangeAPI2(MethodView):
-    no_jwt_check = ["GET"]
 
     @bp.arguments(MessageExchangeAPI2GetArgs, location='query')
     @bp.response(http.client.OK, MessageExchangeAPI2GetResponse)
