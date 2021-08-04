@@ -119,10 +119,10 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
             pipe.xdel(redis_messages_key, expired_ids)
         pipe.execute()
 
-    ret = collections.defaultdict(list)
+    result = collections.defaultdict(list)
     for m in messages:
-        ret[m['queue']].append(m)
-    return ret
+        result[m['queue']].append(m)
+    return result
 
 
 def is_service():
