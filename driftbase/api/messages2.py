@@ -59,14 +59,6 @@ def is_key_legal(key):
     return True
 
 
-def convert(data):
-    if isinstance(data, bytes): return data.decode()
-    if isinstance(data, dict): return dict(map(convert, data.items()))
-    if isinstance(data, tuple): return tuple(map(convert, data))
-    if isinstance(data, list): return list(map(convert, data))
-    return data
-
-
 def _next_message_id(message_id):
     id_parts = message_id.split('-')
     if len(id_parts) == 2:
@@ -96,8 +88,7 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     now = utcnow()
     expired_ids = []
     if len(content):
-        for message_id, message_bytes in content:
-            message = convert(message_bytes)
+        for message_id, message in content:
             message['payload'] = json.loads(message['payload'])
             message['message_id'] = message_id
             highest_processed_message_id = message_id
@@ -336,9 +327,9 @@ class MessageQueueAPI2(MethodView):
         key = g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id))
         val = g.redis.conn.xrange(key, min=message_id, max=message_id, count=1)
         if val:
-            converted = convert(val[0][1])
-            converted['payload'] = json.loads(converted['payload'])
-            return jsonify(converted)
+            message = val[0][1]
+            message['payload'] = json.loads(message['payload'])
+            return message
         else:
             abort(http_client.NOT_FOUND)
 
