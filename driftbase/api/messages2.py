@@ -194,7 +194,7 @@ class MessagesExchangeAPI2(MethodView):
         start_time = utcnow()
         poll_timeout = utcnow()
 
-        res = dict(data={})
+        result = dict(data={})
         if timeout > 0:
             poll_timeout += datetime.timedelta(seconds=timeout)
             log.debug("[%s] Long poll - Waiting %s seconds for messages...", my_player_id, timeout)
@@ -214,20 +214,20 @@ class MessagesExchangeAPI2(MethodView):
                             log.debug("[%s/%s] Poll timeout with no messages after %.1f seconds",
                                       my_player_id, exchange_full_name,
                                       (utcnow() - start_time).total_seconds())
-                            yield res
+                            yield result
                             return
                         # sleep for 100ms
                         gevent.sleep(0.1)
                         yield " "
                     except Exception as e:
                         log.error("[%s/%s] Exception %s", my_player_id, exchange_full_name, repr(e))
-                        yield res
+                        yield result
 
             return Response(stream_with_context(streamer()), mimetype="application/json")
         else:
             messages = fetch_messages(exchange, exchange_id, messages_after, rows)
-            res['data'] = messages
-            return res
+            result['data'] = messages
+            return result
 
 
 class MessagesQueue2PostArgs(ma.Schema):
