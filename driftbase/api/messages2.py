@@ -70,12 +70,12 @@ def _next_message_id(message_id):
 
 
 def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
-    messages = []
-    redis_messages_key = g.redis.make_key("messages2:%s-%s" % (exchange, exchange_id))
-    redis_seen_key = g.redis.make_key("messages2:seen:%s-%s" % (exchange, exchange_id))
     my_player_id = None
     if current_user:
         my_player_id = current_user["player_id"]
+
+    redis_messages_key = g.redis.make_key("messages2:%s:%s" % (exchange, exchange_id))
+    redis_seen_key = g.redis.make_key("messages2:seen:%s:%s" % (exchange, exchange_id))
 
     seen_message_id = g.redis.conn.get(redis_seen_key)
     if messages_after_id == '0' and seen_message_id:
@@ -83,13 +83,13 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
     else:
         g.redis.conn.set(redis_seen_key, messages_after_id)
 
-    highest_processed_message_id = '0'
-
-    from_message_id = _next_message_id(messages_after_id)
-    content = g.redis.conn.xrange(redis_messages_key, min=from_message_id, max='+', count=rows)
-
     now = utcnow()
+    messages = []
     expired_ids = []
+    highest_processed_message_id = '0'
+    from_message_id = _next_message_id(messages_after_id)
+
+    content = g.redis.conn.xrange(redis_messages_key, min=from_message_id, max='+', count=rows)
     if len(content):
         for message_id, message in content:
             message['payload'] = json.loads(message['payload'])
