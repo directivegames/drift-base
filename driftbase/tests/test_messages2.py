@@ -263,6 +263,8 @@ class MessagesTest(BaseCloudkitTest):
         self.assertIn("Hello", r.json()["testqueue"][0]["payload"])
 
     def test_message_id(self):
+        self.assertEqual("0-1", _next_message_id("0"))
+        self.assertEqual("54-1", _next_message_id("54"))
         self.assertEqual("0-1", _next_message_id("0-0"))
         self.assertEqual("0-541", _next_message_id("0-540"))
         self.assertEqual("12345-1", _next_message_id("12345-0"))

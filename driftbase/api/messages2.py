@@ -60,9 +60,12 @@ def is_key_legal(key):
 
 
 def _next_message_id(message_id):
+    """ Return the minimum valid increment to the passed in message_id """
     id_parts = message_id.split('-')
     if len(id_parts) == 2:
         id_parts[1] = f"{int(id_parts[1]) + 1}"
+    else:
+        id_parts.append('1')
     return '-'.join(id_parts)
 
 
