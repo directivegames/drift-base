@@ -1,22 +1,29 @@
-import urllib
 import http.client
+import urllib
 
 from driftbase.api.messages2 import _next_message_id
 from driftbase.utils.test_utils import BaseCloudkitTest
 
 
-class MessagesTest(BaseCloudkitTest):
+class Messages2Test(BaseCloudkitTest):
     """
-    Tests for the /messages endpoints
+    Tests for the /messages2 endpoints
     """
 
-    def test_messages_send(self):
-        player_receiver = self.make_player()
-        player_receiver_endpoint = self.endpoints["my_player"]
+    def make_player_message_endpoint_and_session(self):
+        self.make_player()
+        return self.endpoints["my_player"], self.headers
+
+    def get_messages_url(self, player_receiver_endpoint):
         r = self.get(player_receiver_endpoint)
         messagequeue_url_template = r.json()["messagequeue2_url"]
         messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
         messages_url = r.json()["messages2_url"]
+        return messagequeue_url_template, messages_url
+
+    def test_messages_send(self):
+        player_receiver_endpoint, _ = self.make_player_message_endpoint_and_session()
+        messagequeue_url_template, messages_url = self.get_messages_url(player_receiver_endpoint)
 
         player_sender = self.make_player()
 
@@ -34,20 +41,14 @@ class MessagesTest(BaseCloudkitTest):
         self.assertIn("that belongs to you", r.json()["error"]["description"])
 
     def test_messages_receive(self):
-        player_receiver = self.make_player()
-        receiver_headers = self.headers
-
-        player_receiver_endpoint = self.endpoints["my_player"]
-        r = self.get(player_receiver_endpoint).json()
-        messagequeue_url_template = r["messagequeue2_url"]
-        messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
-        messages_url = r["messages2_url"]
+        player_receiver_endpoint, receiver_headers = self.make_player_message_endpoint_and_session()
+        messagequeue_url_template, messages_url = self.get_messages_url(player_receiver_endpoint)
 
         # send a message from another player
         player_sender = self.make_player()
         messagequeue_url = messagequeue_url_template.format(queue="testqueue")
         data = {
-            "message" : {"Hello": "World"}
+            "message": {"Hello": "World"}
         }
         r = self.post(messagequeue_url, data=data, expected_status_code=http.client.CREATED).json()
         message_url = r["url"]
@@ -57,7 +58,7 @@ class MessagesTest(BaseCloudkitTest):
 
         # Attempt to fetch just the message we just sent
         # NOTE: Fetching a particular message simply does not work and probably hasn't for a while
-        #r = self.get(message_url).json()
+        # r = self.get(message_url).json()
 
         # get all the messages for the player
         r = self.get(messages_url).json()['data']
@@ -77,14 +78,8 @@ class MessagesTest(BaseCloudkitTest):
         self.assertIn("Hello", r["testqueue"][0]["payload"])
 
     def test_messages_rows(self):
-        player_receiver = self.make_player()
-        receiver_headers = self.headers
-
-        player_receiver_endpoint = self.endpoints["my_player"]
-        r = self.get(player_receiver_endpoint)
-        messagequeue_url_template = r.json()["messagequeue2_url"]
-        messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
-        messages_url = r.json()["messages2_url"]
+        player_receiver_endpoint, receiver_headers = self.make_player_message_endpoint_and_session()
+        messagequeue_url_template, messages_url = self.get_messages_url(player_receiver_endpoint)
 
         # send a message from another player
         player_sender = self.make_player()
@@ -132,14 +127,8 @@ class MessagesTest(BaseCloudkitTest):
         self.assertEqual(js[otherqueue][0]["message_id"], second_message_id)
 
     def test_messages_after(self):
-        player_receiver = self.make_player()
-        receiver_headers = self.headers
-
-        player_receiver_endpoint = self.endpoints["my_player"]
-        r = self.get(player_receiver_endpoint)
-        messagequeue_url_template = r.json()["messagequeue2_url"]
-        messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
-        messages_url = r.json()["messages2_url"]
+        player_receiver_endpoint, receiver_headers = self.make_player_message_endpoint_and_session()
+        messagequeue_url_template, messages_url = self.get_messages_url(player_receiver_endpoint)
 
         # send a message from another player
         player_sender = self.make_player()
@@ -208,13 +197,8 @@ class MessagesTest(BaseCloudkitTest):
         self.assertEqual(js[otherqueue][1]["message_id"], top_message_id)
 
     def test_messages_multiplequeues(self):
-        player_receiver = self.make_player()
-        receiver_headers = self.headers
-        player_receiver_endpoint = self.endpoints["my_player"]
-        r = self.get(player_receiver_endpoint).json()
-        messagequeue_url_template = r["messagequeue2_url"]
-        messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
-        messages_url = r["messages2_url"]
+        player_receiver_endpoint, receiver_headers = self.make_player_message_endpoint_and_session()
+        messagequeue_url_template, messages_url = self.get_messages_url(player_receiver_endpoint)
 
         player_sender = self.make_player()
         num_queues = 5
@@ -236,14 +220,8 @@ class MessagesTest(BaseCloudkitTest):
             self.assertEqual(len(messages), num_messages_per_queue)
 
     def test_messages_longpoll(self):
-        player_receiver = self.make_player()
-        receiver_headers = self.headers
-
-        player_receiver_endpoint = self.endpoints["my_player"]
-        r = self.get(player_receiver_endpoint)
-        messagequeue_url_template = r.json()["messagequeue2_url"]
-        messagequeue_url_template = urllib.parse.unquote(messagequeue_url_template)
-        messages_url = r.json()["messages2_url"]
+        player_receiver_endpoint, receiver_headers = self.make_player_message_endpoint_and_session()
+        messagequeue_url_template, messages_url = self.get_messages_url(player_receiver_endpoint)
 
         # send a message from another player
         player_sender = self.make_player()
