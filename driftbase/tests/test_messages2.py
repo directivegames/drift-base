@@ -57,8 +57,10 @@ class Messages2Test(BaseCloudkitTest):
         self.headers = receiver_headers
 
         # Attempt to fetch just the message we just sent
-        # NOTE: Fetching a particular message simply does not work and probably hasn't for a while
-        # r = self.get(message_url).json()
+        r = self.get(message_url).json()
+        self.assertEqual(r["queue"], "testqueue")
+        self.assertIn("payload", r)
+        self.assertIn("Hello", r["payload"])
 
         # get all the messages for the player
         r = self.get(messages_url).json()['data']
