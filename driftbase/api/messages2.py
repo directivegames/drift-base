@@ -109,13 +109,15 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
                           message['message_id'],
                           message['queue'], exchange, exchange_id, my_player_id)
 
-    # If there were only expired messages, make sure we skip those next time
-    if len(messages) == 0 and highest_processed_message_id != '0':
-        g.redis.conn.set(redis_seen_key, highest_processed_message_id)
+    with g.redis.conn.pipeline() as pipe:
+        # If there were only expired messages, make sure we skip those next time
+        if len(messages) == 0 and highest_processed_message_id != '0':
+            pipe.set(redis_seen_key, highest_processed_message_id)
 
-    # Delete expired messages
-    if expired_ids:
-        g.redis.conn.xdel(redis_messages_key, expired_ids)
+        # Delete expired messages
+        if expired_ids:
+            pipe.xdel(redis_messages_key, expired_ids)
+        pipe.execute()
 
     ret = collections.defaultdict(list)
     for m in messages:
