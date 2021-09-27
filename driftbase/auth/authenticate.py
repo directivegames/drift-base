@@ -1,3 +1,5 @@
+import http.client
+
 import logging
 
 import http.client as http_client
@@ -21,36 +23,46 @@ def abort_unauthorized(description):
 
 def authenticate_with_provider(auth_info):
 
+    provider = auth_info.get('provider')
     provider_details = auth_info.get('provider_details')
     automatic_account_creation = auth_info.get("automatic_account_creation", True)
 
-    if auth_info['provider'] in ['device_id', 'user+pass', 'uuid', 'unit_test']:
-        # Authenticate using access key, secret key pair
-        # (or username, password pair)
-        identity = authenticate(auth_info['username'],
-                                auth_info['password'],
+    if provider in ['device_id', 'user+pass', 'unit_test']:
+        for required in ['username', 'password']:
+            if provider_details.get(required) is None:
+                abort(http.client.BAD_REQUEST, description="Missing required argument")
+        if len(provider_details.get('username', '')) < 1:
+            abort(http.client.BAD_REQUEST, description="'username' must not be empty")
+        identity = authenticate(provider_details['username'],
+                                provider_details.get('password', ''),
                                 automatic_account_creation)
-
-    elif auth_info['provider'] == "viveport" and provider_details.get('provisional', False):
+    elif provider in ['uuid']:
+        for required in ['key', 'secret']:
+            if required not in provider_details:
+                abort(http.client.BAD_REQUEST, description="Missing required argument")
+        if len(provider_details.get('key', '')) < 1:
+            abort(http.client.BAD_REQUEST, description="'key' must not be empty")
+        identity = authenticate(provider_details.get('key'),
+                                provider_details.get('secret', ''),
+                                automatic_account_creation)
+    elif provider == "viveport" and provider_details.get('provisional', False):
         if len(provider_details['username']) < 1:
-            abort_unauthorized("Bad Request. 'username' cannot be an empty string.")
+            abort(http.client.BAD_REQUEST, description="'username' empty or missing")
         username = "viveport:" + provider_details['username']
         password = provider_details['password']
         identity = authenticate(username, password, True or automatic_account_creation)
-    elif auth_info['provider'] == "hypereal" and provider_details.get('provisional', False):
+    elif provider == "hypereal" and provider_details.get('provisional', False):
         if len(provider_details['username']) < 1:
-            abort_unauthorized("Bad Request. 'username' cannot be an empty string.")
+            abort(http.client.BAD_REQUEST, description="'username' empty or missing")
         username = "hypereal:" + provider_details['username']
         password = provider_details['password']
         identity = authenticate(username, password, True or automatic_account_creation)
-
-    elif auth_info['provider'] == "7663":
+    elif provider == "7663":
         username = "7663:" + provider_details['username']
         password = provider_details['password']
         identity = authenticate(username, password, True or automatic_account_creation)
     else:
-        abort_unauthorized("Bad Request. Unknown provider '%s'." %
-                           auth_info['provider'])
+        abort(http.client.BAD_REQUEST, description="Unknown provider")
 
     return identity
 
