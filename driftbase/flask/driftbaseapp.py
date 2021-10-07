@@ -23,6 +23,7 @@ def as_bool(value: Union[str, bool, None]) -> bool:
 
 
 if as_bool(os.environ.get('ENABLE_DATADOG_PROFILING', False)):
+    # importing this is all that's needed
     import ddtrace.profiling.auto  # noqa: F401
 
 if as_bool(os.environ.get('ENABLE_DATADOG_APM', False)):
