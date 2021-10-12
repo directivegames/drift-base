@@ -39,4 +39,4 @@ def endpoint_info(*args):
                 continue
             deployable_url = my_url.replace(my_target, deployable_target)  # HACK
             app_targets[deployable_name] = deployable_url
-    return {"app-roots": app_targets}
+    return {"app_roots": app_targets}
