@@ -30,6 +30,7 @@
         "driftbase.api.messages",
         "driftbase.api.matchmakers",
         "driftbase.api.matchmakers.flexmatch",
+        "driftbase.api.apps",
 
         "drift.core.apps.schemas",
         "drift.core.apps.provision",
