@@ -1,9 +1,7 @@
 import logging
 from flask_smorest import Blueprint
 from drift.core.extensions.urlregistry import Endpoints
-from flask import g, current_app
-from drift.utils import get_tier_name
-from flask.views import MethodView
+from flask import g, url_for
 
 log = logging.getLogger(__name__)
 
@@ -18,27 +16,27 @@ def drift_init_extension(app, api, **kwargs):
     endpoints.init_app(app)
 
 
-#@bp.route("/", endpoint="app_roots")
-#class AppRoots(MethodView):
-#    pass
-
 @endpoints.register
 def endpoint_info(*args):
     # Add root endpoints of other deployables belonging to the tenant
-    current_tier = get_tier_name()
-    log.warning(f"INFO DUMP: AppRoots")
-    this_app = current_app.config['name']
-    log.warning(f"INFO DUMP: current app name: {this_app}")
-    tenant = g.conf.tenant
-    log.warning(f"INFO DUMP: tenant: {tenant}")
-    app_roots = []
-    ts = g.conf.table_store
-    tenants_table = ts.get_table('tenants')
-    tenants_content = tenants_table.find()
-    log.warning(f"INFO DUMP: tenants: {tenants_content}")
-    deployables_table = ts.get_table('deployables')
-    deployables_content = deployables_table.find()
-    log.warning(f"INFO DUMP: deployables: {deployables_content}")
-    #deployables_content = deployables_table.find() #get_table('deployables').get({'deployable_name': deployable_name, 'tier_name': tier_name}),
-    # deployables = tenants_table.find({"tier_name": tier_name, "tenant_name": })
-    return {"app_roots": "justsometest"}
+    tenant_me = g.conf.tenant
+    tier_me = tenant_me["tier_name"]
+    deployable_me = tenant_me["deployable_name"]
+    tenant_name = tenant_me["tenant_name"]
+    tenant_table = g.conf.table_store.get_table("tenants")
+    my_url = url_for("root.root", _external=True)
+    my_target = tenant_me.get("apitarget", {}).get("api", None)
+    log.warning(f"INFO DUMP: I'm {deployable_me} on {tenant_name}/{tier_me} with url {my_url}, looking for companion apps.")
+    app_targets = {}
+    if my_target:
+        for deployable in tenant_table.find({"tenant_name": tenant_name, "tier_name": tier_me}):
+            deployable_name = deployable["deployable_name"]
+            if deployable_name == deployable_me:
+                continue
+            deployable_target = deployable.get("apitarget", {}).get("api", None)
+            log.warning(f"INFO DUMP: I've found {deployable_name} with api target {deployable_target}.")
+            if deployable_target is None:
+                continue
+            deployable_url = my_url.replace(my_target, deployable_target)  # HACK
+            app_targets[deployable_name] = deployable_url
+    return {"app-roots": app_targets}
