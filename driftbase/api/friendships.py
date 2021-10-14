@@ -12,9 +12,11 @@ import http.client as http_client
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
 
-from driftbase.models.db import Friendship, FriendInvite, CorePlayer
+from driftbase.models.db import Friendship, FriendInvite, CorePlayer, Client
 from driftbase.schemas.friendships import InviteSchema, FriendRequestSchema
 from driftbase.messages import post_message
+from driftbase.players import get_playergroup
+from driftbase.config import get_client_heartbeat_config
 
 DEFAULT_INVITE_EXPIRATION_TIME_SECONDS = 60 * 60 * 1
 
@@ -23,16 +25,75 @@ log = logging.getLogger(__name__)
 bp = Blueprint("friendships", __name__, url_prefix="/friendships", description="Player to player relationships")
 endpoints = Endpoints()
 
+def process_playergroup_message(queue_name, message):
+    log.debug(f"friendships::process_playergroup_message() received event in queue '{queue_name}': '{message}'")
 
-def on_message(queue_name, message):
-    if queue_name == 'clients' and message['event'] == 'created':
-        log.info("Friendship is forevur! This one just connected: %s", message['payload'])
+    if message["event"] == "set" and message["group_name"] == "friends":
+        """
+        Notify the player's friends that the player has come online.
+        Ideally, we would use the player's client 'created' event, but the friends playergroup for the player hasn't been created yet when that happens.
+        """
+
+        player_id = message["player_id"]
+
+        log.info(f"Friends group updated for player '{player_id}'. Updating friends presence to 'online'")
+
+        friend_ids = [player["player_id"] for player in message["payload"]["players"] if player_id != player["player_id"]]
+
+        # Get all online friends
+        online_friends = _fetch_online_friends(friend_ids)
+
+        # query = g.db.query(CorePlayer).filter(CorePlayer.player_id.in_(friend_ids), CorePlayer.is_online.is_(True))
+
+        import pprint
+        pprint.pprint(online_friends)
+
+        # Notify online friends that the player has come online
+        # TODO: Figure out which online friends we need to notify, i.e. who thinks we're offline? For now, handle client side by comparing locally cached state to this event
+        payload = {"event": "friend_presence_changed", "friend_id": player_id, "is_online": True}
+        for player in online_friends:
+            print(f"Sending online message to player '{player.player_id}'")
+            post_message("players", player.player_id, "friendevent", payload)
+
+def process_client_message(queue_name, message):
+    log.debug(f"friendships::process_client_message() received event in queue '{queue_name}': '{message}'")
+
+    if message["event"] == "deleted":
+        """
+        Notify player's friends that the player has gone offline.
+        """
+
+        player_id = message["player_id"]
+
+        log.info(f"Client deleted for player '{player_id}'. Updating friends presence to 'offline'")
+
+        pg = get_playergroup("friends", player_id, handle_not_found=False)
+
+        if not pg:
+            log.warning(f"Unable to update friend presence to 'offline' for player '{player_id}'. Player has no 'friends' playergroup")
+            return
+
+        friend_ids = [player["player_id"] for player in pg["players"] if player_id != player["player_id"]]
+
+        # Get all online friends
+        online_friends = _fetch_online_friends(friend_ids)
+
+        import pprint
+        pprint.pprint(online_friends)
+
+        # Notify online friends that the player has gone offline
+        # TODO: Figure out which online friends we need to notify, i.e. who thinks we're online? For now, handle client side by comparing locally cached state to this event
+        payload = {"event": "friend_presence_changed", "friend_id": player_id, "is_online": False}
+        for player in online_friends:
+            print(f"Sending offline message to player '{player.player_id}'")
+            post_message("players", player.player_id, "friendevent", payload)
 
 
 def drift_init_extension(app, api, **kwargs):
     api.register_blueprint(bp)
     endpoints.init_app(app)
-    app.messagebus.register_consumer(on_message, 'clients')
+    app.messagebus.register_consumer(process_playergroup_message, "playergroup")
+    app.messagebus.register_consumer(process_client_message, "client")
 
 
 def get_player(player_id):
@@ -307,3 +368,17 @@ def endpoint_info(*args):
     if current_user:
         ret["my_friends"] = url_for("friendships.list", player_id=current_user["player_id"], _external=True)
     return ret
+
+def _fetch_online_friends(friend_ids):
+    """
+    Fetch players via player id who have a client that is active and within the heartbeat timeout.
+    Mimics the logic of the 'is_online' hybrid property.
+    """
+    _, heartbeat_timeout = get_client_heartbeat_config()
+    query = g.db.query(CorePlayer).join(Client).filter(
+        CorePlayer.player_id.in_(friend_ids),
+        Client.status == "active",
+        Client.heartbeat + datetime.timedelta(seconds=heartbeat_timeout) >= datetime.datetime.utcnow(),
+    )
+
+    return query.all()
