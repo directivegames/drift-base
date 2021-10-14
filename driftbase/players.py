@@ -4,7 +4,7 @@ import re
 import http.client as http_client
 import logging
 
-from flask import g, request
+from flask import g, request, current_app
 from flask_smorest import abort
 
 from drift.core.extensions.jwt import current_user
@@ -51,7 +51,7 @@ def log_event(player_id, event_type_name, details=None, db_session=None):
     db_session.commit()
 
 
-def get_playergroup(group_name, player_id=None):
+def get_playergroup(group_name, player_id=None, handle_not_found=True):
     """Utility function to return player group.
     Can be used freely within a Flask request context.
     Raises 404 if group is not found.
@@ -61,9 +61,11 @@ def get_playergroup(group_name, player_id=None):
     pg = g.redis.get(key)
     if pg:
         return json.loads(pg)
-    else:
+    elif handle_not_found:
         abort(http_client.NOT_FOUND,
               message="No player group named '%s' exists for player %s." % (group_name, player_id))
+
+    return None
 
 
 def get_playergroup_ids(group_name, player_id=None, caress_in_predicate=True):
@@ -83,6 +85,15 @@ def get_playergroup_ids(group_name, player_id=None, caress_in_predicate=True):
 def set_playergroup(group_name, player_id, payload):
     key = _get_playergroup_key(group_name, player_id)
     g.redis.set(key, json.dumps(payload), expire=RETENTION_IN_SEC)
+
+    message_data = {
+        "event": "set",
+        "group_name": group_name,
+        "player_id": player_id,
+        "payload": payload,
+    }
+
+    current_app.extensions["messagebus"].publish_message("playergroup", message_data)
 
 
 def _get_playergroup_key(group_name, player_id):
