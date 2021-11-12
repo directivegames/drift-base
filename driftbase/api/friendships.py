@@ -1,13 +1,14 @@
 import datetime
 import logging
 import uuid
+import copy
 
 import marshmallow as ma
 from drift.core.extensions.jwt import current_user
 from drift.core.extensions.urlregistry import Endpoints
-from flask import request, g, abort, url_for, jsonify
+from flask import request, g, url_for, jsonify
 from flask.views import MethodView
-from flask_smorest import Blueprint
+from flask_smorest import Blueprint, abort
 import http.client as http_client
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
@@ -15,6 +16,8 @@ from sqlalchemy.orm import aliased
 from driftbase.models.db import Friendship, FriendInvite, CorePlayer
 from driftbase.schemas.friendships import InviteSchema, FriendRequestSchema
 from driftbase.messages import post_message
+from driftbase.exceptions.drift_api_exceptions import NotFoundException, ConflictException, ForbiddenException
+from driftbase import friendships
 
 DEFAULT_INVITE_EXPIRATION_TIME_SECONDS = 60 * 60 * 1
 
@@ -58,7 +61,7 @@ class FriendshipsAPI(MethodView):
         List my friends
         """
         if player_id != current_user["player_id"]:
-            abort(http_client.FORBIDDEN, description="That is not your player!")
+            abort(http_client.FORBIDDEN, message="That is not your player!")
 
         left = g.db.query(Friendship.id, Friendship.player1_id, Friendship.player2_id).filter_by(player1_id=player_id,
                                                                                                  status="active")
@@ -86,26 +89,26 @@ class FriendshipsAPI(MethodView):
         New friend
         """
         if player_id != current_user["player_id"]:
-            abort(http_client.FORBIDDEN, description="That is not your player!")
+            abort(http_client.FORBIDDEN, message="That is not your player!")
 
         invite_token = args.get("token")
 
         invite = g.db.query(FriendInvite).filter_by(token=invite_token).first()
         if invite is None:
-            abort(http_client.NOT_FOUND, description="The invite was not found!")
+            abort(http_client.NOT_FOUND, message="The invite was not found!")
 
         if invite.expiry_date < datetime.datetime.utcnow():
-            abort(http_client.FORBIDDEN, description="The invite has expired!")
+            abort(http_client.FORBIDDEN, message="The invite has expired!")
 
         if invite.deleted:
-            abort(http_client.FORBIDDEN, description="The invite has been deleted!")
+            abort(http_client.FORBIDDEN, message="The invite has been deleted!")
 
         friend_id = invite.issued_by_player_id
         left_id = player_id
         right_id = friend_id
 
         if left_id == right_id:
-            abort(http_client.FORBIDDEN, description="You cannot befriend yourself!")
+            abort(http_client.FORBIDDEN, message="You cannot befriend yourself!")
 
         if left_id > right_id:
             left_id, right_id = right_id, left_id
@@ -150,9 +153,9 @@ class FriendshipAPI(MethodView):
 
         friendship = g.db.query(Friendship).filter_by(id=friendship_id).first()
         if friendship is None:
-            abort(http_client.NOT_FOUND, description="Unknown friendship")
+            abort(http_client.NOT_FOUND, message="Unknown friendship")
         elif friendship.player1_id != player_id and friendship.player2_id != player_id:
-            abort(http_client.FORBIDDEN, description="You are not friends")
+            abort(http_client.FORBIDDEN, message="You are not friends")
         elif friendship.status == "deleted":
             return jsonify("{}"), http_client.GONE
 
@@ -207,7 +210,7 @@ class FriendInvitesAPI(MethodView):
             g.db.add(invite)
             g.db.commit()
         except IntegrityError as e:
-            abort(http_client.BAD_REQUEST, description="Invalid player IDs provided with request.")
+            abort(http_client.BAD_REQUEST, message="Invalid player IDs provided with request.")
 
         if receiving_player_id is not None:
             self._post_friend_request_message(sending_player_id, receiving_player_id, token, expires_seconds)
@@ -223,7 +226,7 @@ class FriendInvitesAPI(MethodView):
     def _validate_friend_request(receiving_player_id):
         sending_player_id = int(current_user["player_id"])
         if receiving_player_id == sending_player_id:
-            abort(http_client.CONFLICT, description="Cannot send friend requests to yourself")
+            abort(http_client.CONFLICT, message="Cannot send friend requests to yourself")
 
         player1_id, player2_id = min(sending_player_id, receiving_player_id), max(sending_player_id,
                                                                                   receiving_player_id)
@@ -232,20 +235,20 @@ class FriendInvitesAPI(MethodView):
             Friendship.player2_id == player2_id
         ).first()
         if existing_friendship and existing_friendship.status == "active":
-            abort(http_client.CONFLICT, description="You are already friends")  # Already friends
+            abort(http_client.CONFLICT, message="You are already friends")  # Already friends
         pending_invite = g.db.query(FriendInvite). \
             filter(FriendInvite.issued_by_player_id == sending_player_id,
                    FriendInvite.issued_to_player_id == receiving_player_id). \
             filter(FriendInvite.expiry_date > datetime.datetime.utcnow(), FriendInvite.deleted.is_(False)). \
             first()
         if pending_invite:
-            abort(http_client.CONFLICT, description="Cannot issue multiple friend requests to the same receiver")
+            abort(http_client.CONFLICT, message="Cannot issue multiple friend requests to the same receiver")
         reciprocal_invite = g.db.query(FriendInvite). \
             filter(FriendInvite.issued_by_player_id == receiving_player_id,
                    FriendInvite.issued_to_player_id == sending_player_id). \
             filter(FriendInvite.expiry_date > datetime.datetime.utcnow(), FriendInvite.deleted.is_(False)).first()
         if reciprocal_invite:
-            abort(http_client.CONFLICT, description="The receiver has already sent you a friend request")
+            abort(http_client.CONFLICT, message="The receiver has already sent you a friend request")
 
     @staticmethod
     def _post_friend_request_message(sender_player_id, receiving_player_id, token, expiry):
@@ -269,10 +272,10 @@ class FriendInviteAPI(MethodView):
 
         invite = g.db.query(FriendInvite).filter_by(id=invite_id).first()
         if not invite:
-            abort(http_client.NOT_FOUND, description="Invite not found")
+            abort(http_client.NOT_FOUND, message="Invite not found")
         elif invite.issued_by_player_id != player_id and invite.issued_to_player_id != player_id:
             # You may only delete invites sent by you or directly to you.
-            abort(http_client.FORBIDDEN, description="Not your invite")
+            abort(http_client.FORBIDDEN, message="Not your invite")
         elif invite.deleted:
             return jsonify("{}"), http_client.GONE
 
@@ -297,13 +300,105 @@ class FriendRequestsAPI(MethodView):
                    FriendInvite.deleted.is_(False))
 
 
+class FriendCodeResponseSchema(ma.Schema):
+    friend_code = ma.fields.String(metadata=dict(description="The friend code itself."))
+    player_id = ma.fields.Integer(metadata=dict(description="The player assigned to this friend code."))
+    create_date = ma.fields.String(metadata=dict(description="The UTC timestamp of when the friend code was created."))
+    expiry_date = ma.fields.String(metadata=dict(description="The UTC timestamp of when the friend code expires."))
+
+    friend_code_url = ma.fields.URL(metadata=dict(description="Friend code URL"))
+
+@bp.route("/codes", endpoint="codes")
+class FriendCodeAPI(MethodView):
+    @bp.response(http_client.OK, FriendCodeResponseSchema)
+    def get(self):
+        """
+        Get current (if any) friend code
+        """
+
+        player_id = current_user["player_id"]
+
+        try:
+            friend_code = friendships.get_player_friend_code(player_id)
+            return _add_friend_code_url(friend_code)
+        except NotFoundException as e:
+            abort(http_client.NOT_FOUND, message=e.msg)
+        except ConflictException as e:
+            abort(http_client.CONFLICT, message=e.msg)
+
+    @bp.response(http_client.CREATED, FriendCodeResponseSchema)
+    def post(self):
+        """
+        Create a new friend code
+        """
+
+        player_id = current_user["player_id"]
+
+        try:
+            friend_code = friendships.create_friend_code(player_id)
+            return _add_friend_code_url(friend_code)
+        except NotFoundException as e:
+            abort(http_client.NOT_FOUND, message=e.msg)
+        except ConflictException as e:
+            abort(http_client.CONFLICT, message=e.msg)
+
+@bp.route("/codes/<string:friend_code_id>", endpoint="code")
+class FriendCodeAPI(MethodView):
+    @bp.response(http_client.OK, FriendCodeResponseSchema)
+    def get(self, friend_code_id: str):
+        """
+        Get specific friend code
+        """
+
+        try:
+            friend_code = friendships.get_friend_code(friend_code_id)
+            return _add_friend_code_url(friend_code)
+        except NotFoundException as e:
+            abort(http_client.NOT_FOUND, message=e.msg)
+        except ConflictException as e:
+            abort(http_client.CONFLICT, message=e.msg)
+
+    @bp.response(http_client.CREATED, FriendshipsResponseSchema)
+    def post(self, friend_code_id: str):
+        """
+        Use specific friend code to add the player assigned to it as a friend
+        """
+
+        player_id = current_user["player_id"]
+
+        try:
+            friend_id, friendship_id = friendships.use_friend_code(player_id, friend_code_id)
+
+            return {
+                "friend_id": friend_id,
+                "url": url_for("friendships.entry", friendship_id=friendship_id, _external=True),
+                "messagequeue_url": url_for("messages.exchange", exchange="players", exchange_id=friend_id, _external=True) + "/{queue}",
+            }
+        except NotFoundException as e:
+            abort(http_client.NOT_FOUND, message=e.msg)
+        except ConflictException as e:
+            abort(http_client.CONFLICT, message=e.msg)
+        except ForbiddenException as e:
+            abort(http_client.FORBIDDEN, message=e.msg)
+
 @endpoints.register
 def endpoint_info(*args):
     ret = {
         "my_friends": None,
         "friend_invites": url_for("friendships.invites", _external=True),
-        "friend_requests": url_for("friendships.requests", _external=True)
+        "friend_requests": url_for("friendships.requests", _external=True),
+        "friend_codes": url_for("friendships.codes", _external=True),
     }
     if current_user:
         ret["my_friends"] = url_for("friendships.list", player_id=current_user["player_id"], _external=True)
     return ret
+
+# Helpers
+
+def _add_friend_code_url(friend_code: dict):
+    friend_code_id = friend_code["friend_code"]
+    friend_code_with_url = copy.deepcopy(friend_code)
+
+    friend_code_with_url["friend_code_url"] = url_for("friendships.code", friend_code_id=friend_code_id, _external=True)
+
+    return friend_code_with_url

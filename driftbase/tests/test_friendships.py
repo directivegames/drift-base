@@ -1,6 +1,10 @@
 import re
 import uuid
+import copy
 import http.client as http_client
+from unittest.mock import patch
+from driftbase import friendships
+from driftbase.exceptions import drift_api_exceptions
 
 from driftbase.utils.test_utils import BaseCloudkitTest
 
@@ -371,3 +375,236 @@ class FriendsTest(_BaseFriendsTest):
         self.assertIsInstance(friends, list)
         self.assertEqual(len(friends), 1)
         self.assertEqual(friends[0]["friend_id"], p1)
+
+class _BaseFriendsCodeTest(BaseCloudkitTest):
+    friend_code = None
+    friend_code_id = None
+    friend_code_player_id = None
+    friend_code_url = None
+
+    def create_friend_code(self):
+        response = self.post(self.endpoints["friend_codes"], expected_status_code=http_client.CREATED)
+        response_json = response.json()
+
+        self.friend_code = response_json
+        self.friend_code_id = response_json["friend_code"]
+        self.friend_code_player_id = response_json["player_id"]
+        self.friend_code_url = response_json["friend_code_url"]
+
+    def _assert_error(self, response, expected_description=None):
+        response_json = response.json()
+
+        self.assertIn("error", response_json)
+        self.assertIsInstance(response_json["error"], dict)
+        self.assertIn("description" ,response_json["error"])
+
+        if expected_description:
+            self.assertEqual(response_json["error"]["description"], expected_description)
+
+"""
+Friend codes API
+"""
+
+# /friendships/codes
+class FriendCodesAPITest(_BaseFriendsCodeTest):
+    # Get
+    def test_get_api(self):
+        self.make_player()
+        friend_codes_url = self.endpoints["friend_codes"]
+
+        with patch.object(friendships, "get_player_friend_code", return_value=MOCK_FRIEND_CODE) as get_player_friend_code_mock:
+            # Valid
+            response = self.get(friend_codes_url, expected_status_code=http_client.OK)
+            response_json = response.json()
+
+            self.assertIn("friend_code_url", response_json)
+
+            # Not found
+            get_player_friend_code_mock.side_effect = drift_api_exceptions.NotFoundException(MOCK_ERROR)
+
+            response = self.get(friend_codes_url, expected_status_code=http_client.NOT_FOUND)
+
+            self._assert_error(response, expected_description=MOCK_ERROR)
+
+    # Post
+    def test_post_api(self):
+        self.make_player()
+        friend_codes_url = self.endpoints["friend_codes"]
+
+        with patch.object(friendships, "create_friend_code", return_value=MOCK_FRIEND_CODE) as create_friend_code_mock:
+            # Valid
+            response = self.post(friend_codes_url, expected_status_code=http_client.CREATED)
+            response_json = response.json()
+
+            self.assertIn("friend_code_url", response_json)
+
+# /friendships/codes/<friend_code>
+class FriendCodeAPITest(_BaseFriendsCodeTest):
+    # Get
+    def test_get_api(self):
+        self.make_player()
+        friend_code_url = self.endpoints["friend_codes"] + "/ABC123"
+
+        with patch.object(friendships, "get_friend_code", return_value=MOCK_FRIEND_CODE) as get_friend_code_mock:
+            # Valid
+            response = self.get(friend_code_url, expected_status_code=http_client.OK)
+            response_json = response.json()
+
+            self.assertIn("friend_code_url", response_json)
+
+            # Not found
+            get_friend_code_mock.side_effect = drift_api_exceptions.NotFoundException(MOCK_ERROR)
+
+            response = self.get(friend_code_url, expected_status_code=http_client.NOT_FOUND)
+
+            self._assert_error(response, expected_description=MOCK_ERROR)
+
+    # Post
+    def test_post_api(self):
+        self.make_player()
+        friend_code_url = self.endpoints["friend_codes"] + "/ABC123"
+
+        with patch.object(friendships, "use_friend_code", return_value=(420, 1337)) as create_friend_code_mock:
+            # Valid
+            response = self.post(friend_code_url, expected_status_code=http_client.CREATED)
+            response_json = response.json()
+
+            self.assertIn("friend_id", response_json)
+            self.assertIn("url", response_json)
+            self.assertIn("messagequeue_url", response_json)
+
+            # Not found
+            create_friend_code_mock.side_effect = drift_api_exceptions.NotFoundException(MOCK_ERROR)
+
+            response = self.post(friend_code_url, expected_status_code=http_client.NOT_FOUND)
+
+            self._assert_error(response, expected_description=MOCK_ERROR)
+
+"""
+Friend codes implementation
+"""
+
+class FriendCodesTest(_BaseFriendsCodeTest):
+    # Get friend code
+
+    def test_get_player_friend_code(self):
+        self.make_player()
+        self.create_friend_code()
+
+        # Get player friend code
+        response = self.get(self.endpoints["friend_codes"], expected_status_code=http_client.OK)
+        get_friend_code = response.json()
+
+        self.assertDictEqual(self.friend_code, get_friend_code)
+        self.assertIn("friend_code_url", get_friend_code)
+
+        # Get specific friend code
+        response = self.get(get_friend_code["friend_code_url"], expected_status_code=http_client.OK)
+        get_specific_friend_code = response.json()
+
+        self.assertDictEqual(get_specific_friend_code, get_friend_code)
+
+    def test_get_player_friend_code_without_having_a_code(self):
+        self.make_player()
+
+        response = self.get(self.endpoints["friend_codes"], expected_status_code=http_client.NOT_FOUND)
+        self._assert_error(response)
+
+    def test_get_friend_code_that_doesnt_exist(self):
+        self.make_player()
+
+        response = self.get(self.endpoints["friend_codes"] + "/bogus", expected_status_code=http_client.NOT_FOUND)
+        self._assert_error(response)
+
+    # Create friend code
+
+    def test_create_friend_code(self):
+        self.make_player()
+        self.create_friend_code()
+
+        self.assertIn("friend_code_url", self.friend_code)
+        self.assertIn("create_date", self.friend_code)
+        self.assertIn("expiry_date", self.friend_code)
+        self.assertIn("player_id", self.friend_code)
+        self.assertIn("friend_code", self.friend_code)
+
+    def test_create_friend_code_twice(self):
+        self.make_player()
+
+        # First create call
+        self.create_friend_code()
+
+        old_friend_code = copy.deepcopy(self.friend_code)
+
+        # Second create call
+        self.create_friend_code()
+
+        # Should be the same
+        self.assertDictEqual(old_friend_code, self.friend_code)
+
+    # Use friend code
+
+    def test_use_friend_code(self):
+        player_1_username = self.make_player()
+        player_1_id = self.player_id
+        self.create_friend_code()
+
+        player_2_username = self.make_player()
+        player_2_id = self.player_id
+
+        self.post(self.friend_code_url, expected_status_code=http_client.CREATED)
+
+        # Verify that the players are friends
+
+        # Player 2 friends list
+        response = self.get(self.endpoints["my_friends"], expected_status_code=http_client.OK)
+        friends_list = response.json()
+
+        self.assertTrue(any(friend["friend_id"] == player_1_id for friend in friends_list))
+
+        # Player 1 friends list
+        self.auth(player_1_username)
+
+        response = self.get(self.endpoints["my_friends"], expected_status_code=http_client.OK)
+        friends_list = response.json()
+
+        self.assertTrue(any(friend["friend_id"] == player_2_id for friend in friends_list))
+
+    def test_use_friend_code_twice(self):
+        self.make_player()
+        self.create_friend_code()
+
+        # Login second player
+        self.make_player()
+
+        # First use
+        self.post(self.friend_code_url, expected_status_code=http_client.CREATED)
+
+        # Second use
+        response = self.post(self.friend_code_url, expected_status_code=http_client.CONFLICT)
+
+        # Not asserting error because CONFLICT errors JSON is different from others. Really strange.
+        # self._assert_error(response)
+
+    def test_use_friend_code_that_doesnt_exist(self):
+        self.make_player()
+
+        response = self.post(self.endpoints["friend_codes"] + "/bogus", expected_status_code=http_client.NOT_FOUND)
+
+        self._assert_error(response)
+
+
+MOCK_FRIEND_CODE = {
+    "friend_code": "ABC123",
+    "player_id": 1337,
+    "create_date": "2021-09-24T16:15:08.758448",
+    "expiry_date": "2021-09-24T16:25:08.758448",
+}
+
+MOCK_FRIENDSHIP = {
+    "friend_id": 1337,
+    "url": "this is totally a url",
+    "messagequeue_url": "this is also totally a url",
+}
+
+MOCK_ERROR = "Some error"
