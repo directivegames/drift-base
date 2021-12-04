@@ -45,7 +45,7 @@ def authenticate_with_provider(auth_info):
                                 provider_details['secret'],
                                 automatic_account_creation)
 
-    elif provider in ['user+pass', 'unit_test']:
+    elif provider in ['user+pass']:
         identity = authenticate(provider_details['username'],
                                 provider_details['password'],
                                 automatic_account_creation)

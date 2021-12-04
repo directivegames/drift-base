@@ -15,7 +15,7 @@ AUTH_MODULES = {
 }
 
 LOCAL_AUTH = [
-    'device_id', 'user+pass', 'uuid', 'unit_test', 'viveport', 'hypereal', '7663',
+    'device_id', 'user+pass', 'uuid', 'viveport', 'hypereal', '7663',
 ]
 
 
