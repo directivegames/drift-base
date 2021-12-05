@@ -1,7 +1,8 @@
 import datetime
 
 import http.client as http_client
-from drift.systesthelper import setup_tenant, remove_tenant, DriftBaseTestCase, uuid_string
+from drift.systesthelper import setup_tenant, remove_tenant, DriftTestCase, uuid_string
+from driftbase.systesthelper import DriftBaseTestCase
 
 
 def setUpModule():

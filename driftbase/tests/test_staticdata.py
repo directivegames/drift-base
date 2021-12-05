@@ -6,7 +6,7 @@ import responses
 import json
 import os
 from drift.utils import get_config
-from drift.systesthelper import setup_tenant, remove_tenant, DriftBaseTestCase
+from drift.systesthelper import setup_tenant, remove_tenant, DriftTestCase
 
 def setUpModule():
     setup_tenant()
@@ -16,7 +16,7 @@ def tearDownModule():
     remove_tenant()
 
 
-class CfgTest(DriftBaseTestCase):
+class CfgTest(DriftTestCase):
     """
     Tests for the /static-data endpoint
     """

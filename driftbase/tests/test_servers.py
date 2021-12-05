@@ -2,13 +2,13 @@ import copy
 import datetime
 from unittest.mock import patch
 
-from drift.systesthelper import DriftBaseTestCase
+from drift.systesthelper import DriftTestCase
 import http.client as http_client
 
 from driftbase.api.servers import ServersPostResponseSchema, ServerPutResponseSchema, ServerHeartbeatPutResponseSchema
 
 
-class ServersTest(DriftBaseTestCase):
+class ServersTest(DriftTestCase):
     """
     Tests for the /servers service endpoints
     """

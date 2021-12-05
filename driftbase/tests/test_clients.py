@@ -4,7 +4,7 @@ import datetime
 import http.client as http_client
 from mock import patch
 
-from drift.systesthelper import DriftBaseTestCase
+from driftbase.systesthelper import DriftBaseTestCase
 
 
 class ClientsTest(DriftBaseTestCase):

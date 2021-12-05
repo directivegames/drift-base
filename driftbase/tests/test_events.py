@@ -3,11 +3,11 @@ import datetime
 import mock
 import http.client as http_client
 
-from drift.systesthelper import DriftBaseTestCase
+from drift.systesthelper import DriftTestCase
 from drift.core.extensions.jwt import current_user
 
 
-class EventsTest(DriftBaseTestCase):
+class EventsTest(DriftTestCase):
     """
     Tests for the /events and /clientlogs endpoint
     """

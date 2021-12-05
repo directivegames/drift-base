@@ -1,9 +1,9 @@
 import unittest
 import http.client as http_client
-from drift.systesthelper import DriftBaseTestCase, make_unique
+from drift.systesthelper import DriftTestCase, make_unique
 
 
-class RunConfigsTest(DriftBaseTestCase):
+class RunConfigsTest(DriftTestCase):
     """
     Tests for the /machines service endpoints
     """

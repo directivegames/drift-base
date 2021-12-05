@@ -1,7 +1,7 @@
 from mock import patch, MagicMock
 import http.client as http_client
 
-from drift.systesthelper import setup_tenant, remove_tenant, DriftBaseTestCase
+from drift.systesthelper import setup_tenant, remove_tenant, DriftTestCase
 from drift.utils import get_config
 
 
@@ -31,7 +31,7 @@ def tearDownModule():
     remove_tenant()
 
 
-class AuthTests(DriftBaseTestCase):
+class AuthTests(DriftTestCase):
 
     def test_oculus_authentication(self):
         # Oculus provisional authentication check
