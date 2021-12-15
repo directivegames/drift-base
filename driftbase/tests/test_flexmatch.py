@@ -1,6 +1,6 @@
 import http.client as http_client
 import time
-
+import datetime
 from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
 from driftbase import flexmatch
@@ -771,6 +771,30 @@ class FlexMatchEventTest(_BaseFlexmatchTest):
             notification, _ = self.get_player_notification("matchmaking", "MatchmakingSearching")
             self.assertIsInstance(notification, dict)
             self.assertTrue(notification["event"] == "MatchmakingSearching")
+
+    def test_potential_match_created_denies_match_for_absent_player(self):
+        # Start matchmaking
+        user_name, ticket_url, ticket = self._initiate_matchmaking()
+        events_url = self.endpoints["flexmatch_events"]
+        # Fake 10 minutes heartbeat lag
+        with patch("driftbase.api.clients.utcnow") as mock_date:
+            mock_date.return_value = datetime.datetime.utcnow() - datetime.timedelta(minutes=10)
+            r = self.put(self.endpoints["my_client"], expected_status_code=http_client.OK)
+        # PUT PotentialMatchCreated
+        acceptance_timeout = 10
+        ticket_id, player_info = ticket["TicketId"], {"playerId": str(self.player_id), "team": "winners"}
+        details = self._get_event_details(ticket_id, player_info, "PotentialMatchCreated", acceptanceRequired=True,
+                                          acceptanceTimeout=acceptance_timeout)
+        data = self._get_event_data(details)
+        with self._managed_bearer_token_user():
+            # Verify that we issue a "REJECT" to flexmatch
+            with patch.object(MockGameLiftClient, 'accept_match') as mock_accept_match:
+                mock_accept_match.return_value = {}
+                with patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient):
+                    self.put(events_url, data=data, expected_status_code=http_client.OK)
+                    self.assertTrue(mock_accept_match.called)
+                    self.assertEqual(1, mock_accept_match.call_count)
+                    self.assertDictEqual(mock_accept_match.call_args.kwargs, {"TicketId": ticket_id, "PlayerIds": [str(self.player_id)], "AcceptanceType": "REJECT"})
 
 
 class MockGameLiftClient(object):

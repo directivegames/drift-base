@@ -1,4 +1,5 @@
 import copy
+import datetime
 import logging
 import boto3
 import json
@@ -9,6 +10,9 @@ from flask import g, url_for
 from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.messages import post_message
+
+from driftbase.config import get_client_heartbeat_config
+from driftbase.models.db import Client
 
 from driftbase.resources.flexmatch import TIER_DEFAULTS
 
@@ -432,6 +436,16 @@ def _process_potential_match_event(event):
                 "acceptance_timeout": acceptance_timeout
             }
             _post_matchmaking_event_to_members([player_id], "PotentialMatchCreated", event_data=message_data)
+        if acceptance_required:
+            # if player hasn't heartbeated within the timeout, immediately deny on his behalf
+            # TODO: Factor the Client logic out of API code and call the module code for this check
+            _, heartbeat_timeout = get_client_heartbeat_config()
+            min_heartbeat_time = datetime.datetime.utcnow() - datetime.timedelta(seconds=heartbeat_timeout)
+            rows = g.db.query(Client).filter(Client.player_id == player_id).filter(Client.heartbeat >= min_heartbeat_time).filter(Client.status == "active").all()
+            if not rows:
+                log.info(f"Rejecting match for player {player_id} in ticket {player_ticket['TicketId']} since he hasn't sent a heartbeat after {min_heartbeat_time}.")
+                update_player_acceptance(player_ticket["TicketId"], player_id, match_id, False)
+
 
 def _process_matchmaking_succeeded_event(event):
     game_session_info = event["gameSessionInfo"]
