@@ -43,6 +43,7 @@ log = logging.getLogger(__name__)
 def drift_init_extension(app, api, **kwargs):
     api.register_blueprint(bp)
     app.messagebus.register_consumer(flexmatch.handle_party_event, "parties")
+    app.messagebus.register_consumer(flexmatch.handle_client_event, "client")
     endpoints.init_app(app)
 
 
@@ -208,9 +209,13 @@ class FlexMatchQueueEventAPI(MethodView):
 
     @requires_roles("flexmatch_event")
     def put(self):
-        # TODO: implement handling
+        # TODO: Have publish message consumer do the try/except in Drift lib
         log.info(f"Queue event: {request.json}")
-        current_app.extensions["messagebus"].publish_message("gamelift_queue", request.json)
+        try:
+            current_app.extensions["messagebus"].publish_message("gamelift_queue", request.json)
+        except Exception as e:
+            log.error(f"Error processing queue event: {e}")
+
         return {}, http_client.OK
 
 @endpoints.register

@@ -34,7 +34,7 @@ NON_CANCELABLE_STATE = {  # tickets in any of these states may not be cancelled
     "REQUIRES_ACCEPTANCE"
 }
 
-LIVE_STATE = { # Tickets in these states are considered valid
+LIVE_STATE = {  # Tickets in these states are considered valid
     "QUEUED",
     "SEARCHING",
     "REQUIRES_ACCEPTANCE",
@@ -120,6 +120,7 @@ def cancel_active_ticket(player_id, ticket_id):
                 return _cancel_locked_ticket(ticket_lock.ticket, player_id)
             except GameliftClientException:
                 ticket_lock.ticket = None  # Delete the ticket locally if there is an unrecoverable error
+                log.warning(f"Clearing ticket {ticket_id} from cache because of unrecoverable error during cancellation attempt.")
                 _post_matchmaking_event_to_members(_get_player_party_members(player_id), "MatchmakingStopped")
                 raise
     return None
@@ -192,6 +193,14 @@ def handle_party_event(queue_name, event_data):
             if ticket_lock.ticket:
                 log.info(f"handle_party_event:player_joined: Cancelling ticket {ticket_lock.ticket['TicketId']} for player {player_id} since he has now joined party {party_id}")
                 _cancel_locked_ticket(ticket_lock.ticket, player_id)
+
+def handle_client_event(queue_name, event_data):
+    if queue_name == "client" and event_data["event"] == "deleted":
+        player_id, client_id = event_data["player_id"], event_data["client_id"]
+        player_ticket = get_player_ticket(player_id)
+        if player_ticket:
+            log.info(f"Client {client_id} unregistered. Attempting to cancel ticket {player_ticket['TicketId']}. Ticket dump: {player_ticket}.")
+            cancel_active_ticket(player_id, player_ticket["TicketId"])
 
 def process_flexmatch_event(flexmatch_event):
     event = _get_event_details(flexmatch_event)
@@ -347,7 +356,6 @@ def _is_backfill_ticket(ticket_id):
     return res is not None
 
 def _process_searching_event(event):
-    updated_tickets = set()
     for ticket_id, player in _ticket_players(event):
         player_id = int(player["playerId"])
         if _is_backfill_ticket(ticket_id):
@@ -362,21 +370,16 @@ def _process_searching_event(event):
             if ticket_id != player_ticket["TicketId"]:
                 log.warning(f"'SEARCHING' event has player {player_id} on ticket {ticket_id}, which doesn't match his current ticket {player_ticket['TicketId']}. Ignoring this player/ticket combo update")
                 continue
-            if ticket_key in updated_tickets:
-                log.info(f"Skipping update on ticket for player {player_id} as it resolves to previously updated ticket key {ticket_key}")
-                continue
             if player_ticket.get("GameSessionConnectionInfo", None) is not None:
                 # If we've recorded a session, then the player is in a match already and this is either a backfill ticket or a very much out-of-order ticket
                 log.info(f"Existing session for player {player_id} found. Not updating {player_ticket['TicketId']}")
                 continue
-            if player_ticket["Status"] == "SEARCHING":
-                continue  # Save on redis calls
-            if player_ticket["Status"] not in ("QUEUED", "REQUIRES_ACCEPTANCE"):
+            if player_ticket["Status"] not in ("QUEUED", "SEARCHING", "REQUIRES_ACCEPTANCE"):
                 log.info(f"MatchmakingSearching event for ticket {player_ticket['TicketId']} in state {player_ticket['Status']} doesn't make sense.  Probably out of order delivery; ignoring.")
                 continue
-            log.info(f"Updating ticket {player_ticket['TicketId']} from {player_ticket['Status']} to SEARCHING")
-            player_ticket["Status"] = "SEARCHING"
-            updated_tickets.add(ticket_key)
+            if player_ticket["Status"] != "SEARCHING":
+                log.info(f"Updating ticket {player_ticket['TicketId']} from {player_ticket['Status']} to SEARCHING")
+                player_ticket["Status"] = "SEARCHING"
             _post_matchmaking_event_to_members([player_id], "MatchmakingSearching")
 
 def _process_potential_match_event(event):
@@ -428,7 +431,7 @@ def _process_potential_match_event(event):
                 "match_id":  match_id,
                 "acceptance_timeout": acceptance_timeout
             }
-            _post_matchmaking_event_to_members(player_id, "PotentialMatchCreated", event_data=message_data)
+            _post_matchmaking_event_to_members([player_id], "PotentialMatchCreated", event_data=message_data)
 
 def _process_matchmaking_succeeded_event(event):
     game_session_info = event["gameSessionInfo"]
@@ -504,6 +507,7 @@ def _process_matchmaking_cancelled_event(event):
                              f"Ignoring this player/ticket combo update.")
                 continue
             player_ticket["Status"] = "CANCELLED"
+            log.info(f"Notifying player {player_id} of the cancellation of ticket {ticket_id}")
             _post_matchmaking_event_to_members([player_id], "MatchmakingCancelled")
 
 def _process_accept_match_event(event):
@@ -566,11 +570,13 @@ def _process_matchmaking_timeout_event(event):
                 continue
             if player_ticket.get("GameSessionConnectionInfo", None) is not None:
                 # If we've recorded a session, then the player has been placed in a match already
-                log.info(f"Player {player_id} has a session attached to his ticket.  Timeout is nonsensical here. Ignoring.")
+                log.info(f"Player {player_id} has a session attached to ticket {ticket_id}.  Timeout is nonsensical here. Ignoring.")
                 continue
+            log.info(f"Updating ticket {ticket_id} / player {player_id} from state {player_ticket['Status']} to TIMED_OUT.")
             player_ticket["Status"] = "TIMED_OUT"
             players_to_notify.add(player_id)
     if players_to_notify:
+
         _post_matchmaking_event_to_members(players_to_notify, "MatchmakingFailed", event_data={"reason": "TimeOut"})
 
 def _process_matchmaking_failed_event(event):
@@ -594,6 +600,7 @@ def _process_matchmaking_failed_event(event):
                 # If we've recorded a session, then the player has been placed in a match already
                 log.info(f"Player {player_id} has a session attached to his ticket.  Failure is nonsensical here. Ignoring.")
                 continue
+            log.info(f"Updating ticket {ticket_id} / player {player_id} from state {player_ticket['Status']} to FAILED.")
             player_ticket["Status"] = "FAILED"
             players_to_notify.add(player_id)
     if players_to_notify:
