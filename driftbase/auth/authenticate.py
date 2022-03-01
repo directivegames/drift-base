@@ -161,6 +161,8 @@ def authenticate(username, password, automatic_account_creation=True):
                      my_identity.identity_id)
         else:
             my_user = User(user_name=username)
+            if my_identity.identity_type:
+                my_user.provider = identity_type
             g.db.add(my_user)
             # this is so we can access the auto-increment key value
             g.db.flush()

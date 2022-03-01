@@ -7,13 +7,12 @@ import marshmallow as ma
 from flask_smorest import Blueprint, abort
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from drift.core.extensions.urlregistry import Endpoints
+from drift.core.extensions.jwt import requires_roles
 from driftbase.models.db import User, CorePlayer, UserIdentity
 
+
 log = logging.getLogger(__name__)
-
-
 endpoints = Endpoints()
-
 bp = Blueprint('users', __name__, url_prefix='/users', description='User management')
 
 
@@ -41,7 +40,6 @@ class UserSchema(SQLAlchemyAutoSchema):
         include_relationships = True
         model = User
         strict = True
-    user_url = ma.fields.Str(metadata=dict(description="Hello"))
     client_url = ma.fields.Str()
     user_url = ma.fields.Str()
     players = ma.fields.List(ma.fields.Nested(UserPlayerSchema))
@@ -58,7 +56,6 @@ def drift_init_extension(app, api, **kwargs):
     api.register_blueprint(bp)
 
 
-#@bp.route('', endpoint='users')
 @bp.route('', endpoint='list')
 class UsersListAPI(MethodView):
     @bp.response(http_client.OK, UserSchema(many=True))
@@ -78,7 +75,6 @@ class UsersListAPI(MethodView):
         return ret
 
 
-#@bp.route('/<int:user_id>', endpoint='user')
 @bp.route('/<int:user_id>', endpoint='entry')
 class UsersAPI(MethodView):
     """
@@ -100,6 +96,28 @@ class UsersAPI(MethodView):
         data["players"] = players
         identities = g.db.query(UserIdentity).filter(UserIdentity.user_id == user_id)
         data["identities"] = identities
+
+        return data
+
+@bp.route("/steam/<int:steamid>", endpoint="steam")
+class SteamUserIdentityAPI(MethodView):
+    @requires_roles("service")
+    @bp.response(http_client.OK, UserSchema)
+    def get(self, steamid):
+        user = g.db.query(UserIdentity, User, CorePlayer).\
+            filter(UserIdentity.identity_type == "steam", UserIdentity.name == f"steam:{steamid}").\
+            filter(UserIdentity.user_id == User.user_id).\
+            filter(User.user_id == CorePlayer.user_id).\
+            first()
+        if user is None:
+            abort(http_client.NOT_FOUND)
+        if user.User.provider not in (None, "steam"):
+            abort(http_client.UNPROCESSABLE_ENTITY)
+        data = user.User.as_dict()
+        data["client_url"] = None
+        data["user_url"] = url_for("users.entry", user_id=user.User.user_id, _external=True)
+        data["players"] = [user.CorePlayer]
+        data["identities"] = [user.UserIdentity]
 
         return data
 
