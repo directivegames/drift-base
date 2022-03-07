@@ -113,6 +113,9 @@ def authenticate(username, password, automatic_account_creation=True, allow_fall
             .first()
         if legacy_identity is not None:
             my_identity = legacy_identity
+            # migrate the identity to new-style on demand
+            my_identity.name = username
+            my_identity.identity_type = identity_type
 
     try:
         service_user = g.conf.tier.get('service_user')
