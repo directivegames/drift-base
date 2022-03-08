@@ -296,9 +296,11 @@ class BaseAuthTests(DriftBaseTestCase):
         token2 = jwt.decode(resp2['token'], algorithms=[JWT_ALGORITHM], options=options)
         token3 = jwt.decode(resp3['token'], algorithms=[JWT_ALGORITHM], options=options)
         self.assertEqual(token1['user_id'], token2['user_id'])
+        self.assertEqual(token1['user_name'], token2['user_name'])
         self.assertEqual(token1['player_id'], token2['player_id'])
         self.assertEqual(token1['identity_id'], token2['identity_id'])
         self.assertEqual(token1['user_id'], token3['user_id'])
+        self.assertEqual(token1['user_name'], token3['user_name'])
         self.assertEqual(token1['player_id'], token3['player_id'])
         self.assertEqual(token1['identity_id'], token3['identity_id'])
 
