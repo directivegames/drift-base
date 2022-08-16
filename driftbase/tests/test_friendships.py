@@ -386,7 +386,7 @@ class FriendsTest(_BaseFriendsTest):
         # add a friend
         self.post(self.endpoints["my_friends"], data={"token": token}, expected_status_code=http_client.CREATED)
         # add same friend again
-        self.post(self.endpoints["my_friends"], data={"token": token}, expected_status_code=http_client.OK)
+        self.post(self.endpoints["my_friends"], data={"token": token}, expected_status_code=http_client.CONFLICT)
 
         friends = self.get(self.endpoints["my_friends"]).json()
         self.assertIsInstance(friends, list)
