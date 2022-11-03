@@ -175,9 +175,3 @@ class GameCenterCase(unittest.TestCase):
             return self
         else:
             return GameCenterCase.orig_get(url, *args, **kw)
-
-
-if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level='INFO')
-    unittest.main()
