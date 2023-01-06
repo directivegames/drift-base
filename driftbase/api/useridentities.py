@@ -10,7 +10,7 @@ from hashlib import pbkdf2_hmac
 from drift.blueprint import Blueprint, abort
 from drift.core.extensions.urlregistry import Endpoints
 
-from drift.core.extensions.jwt import current_user, get_cached_token
+from drift.core.extensions.jwt import current_user, get_cached_token_payload
 
 from driftbase.models.db import User, CorePlayer, UserIdentity
 
@@ -138,7 +138,7 @@ class UserIdentitiesAPI(MethodView):
             abort(http_client.NOT_FOUND, message="User %s is not active" % link_with_user_id)
 
         # Verify that link_with_user_id matches user_id in link_with_user_jti
-        link_with_user_jti_payload = get_cached_token(link_with_user_jti)
+        link_with_user_jti_payload = get_cached_token_payload(link_with_user_jti, g.conf)
         if link_with_user_jti_payload["user_id"] != link_with_user_id:
             log.warning("Request for a user identity switch with user_id %s which does not "
                         "match user_id %s from JWT",
