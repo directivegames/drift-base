@@ -12,16 +12,17 @@ import datetime
 import http.client as http_client
 import json
 import logging
+
 import marshmallow as ma
+from drift.blueprint import Blueprint, abort
+from drift.core.extensions.jwt import current_user, issue_token, split_token
+from drift.core.extensions.urlregistry import Endpoints
+from drift.utils import json_response
 from flask import request, url_for, g, current_app
 from flask.views import MethodView
-from drift.blueprint import Blueprint, abort
 from flask_marshmallow.fields import AbsoluteURLFor
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
-from drift.core.extensions.jwt import current_user, issue_token
-from drift.core.extensions.urlregistry import Endpoints
-from drift.utils import json_response
 from driftbase.config import get_client_heartbeat_config
 from driftbase.models.db import (
     User, CorePlayer, Client, UserIdentity
@@ -64,8 +65,8 @@ class ClientSchema(SQLAlchemyAutoSchema):
         exclude = ()
 
     client_url = AbsoluteURLFor('clients.entry',
-                     doc="Fully qualified URL of the client resource",
-                     client_id='<client_id>')
+                                doc="Fully qualified URL of the client resource",
+                                client_id='<client_id>')
 
 
 class ClientPostRequestSchema(ma.Schema):
@@ -204,14 +205,9 @@ class ClientsAPI(MethodView):
         payload = dict(current_user)
         payload["client_id"] = client_id
         new_token = issue_token(payload)
-
-        jwt = new_token["token"]
-        jti = new_token['payload']["jti"]
+        _, token = split_token(new_token["token"])
 
         resource_url = url_client(client_id)
-        response_header = {
-            "Location": resource_url,
-        }
         log.info("Client %s for user %s / player %s has been registered",
                  client_id, user_id, player_id)
         heartbeat_period, heartbeat_timeout = get_client_heartbeat_config()
@@ -223,8 +219,8 @@ class ClientsAPI(MethodView):
             "server_time": utcnow(),
             "next_heartbeat_seconds": heartbeat_period,
             "heartbeat_timeout": utcnow() + datetime.timedelta(seconds=heartbeat_timeout),
-            "jti": jti,
-            "jwt": jwt,
+            "jti": token,
+            "jwt": token,
         }
 
         message_data = {
