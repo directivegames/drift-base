@@ -144,17 +144,19 @@ class GameStateAPI(MethodView):
             g.db.flush()
             log.info("Added new gamestate for player")
 
-        # write new gamestate to the history table for safe keeping
-        gamestatehistory_row = GameStateHistory(player_id=player_id,
-                                                version=gamestate.version,
-                                                data=gamestate.data,
-                                                namespace=gamestate.namespace,
-                                                journal_id=gamestate.journal_id)
-        g.db.add(gamestatehistory_row)
-        g.db.flush()
+        # FIXME: Game state history should be disabled in config, so that games can decide to use it or not
+        if False:
+            # write new gamestate to the history table for safe keeping
+            gamestatehistory_row = GameStateHistory(player_id=player_id,
+                                                    version=gamestate.version,
+                                                    data=gamestate.data,
+                                                    namespace=gamestate.namespace,
+                                                    journal_id=gamestate.journal_id)
+            g.db.add(gamestatehistory_row)
+            g.db.flush()
 
-        gamestatehistory_id = gamestatehistory_row.gamestatehistory_id
-        gamestate.gamestatehistory_id = gamestatehistory_id
+            gamestatehistory_id = gamestatehistory_row.gamestatehistory_id
+            gamestate.gamestatehistory_id = gamestatehistory_id
         g.db.commit()
 
         return gamestate
