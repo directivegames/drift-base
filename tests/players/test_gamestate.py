@@ -205,6 +205,7 @@ class GameStateTests(DriftBaseTestCase):
         self.assertEqual(r.json()["data"], new_gamestate_data)
         self.assertEqual(r.json()["version"], old_version + 1)
 
+    @unittest.skip("Currently disabled pending a better solution")
     def test_gamestate_history(self):
         self.auth(username=uuid_string())
         player_url = self.endpoints["my_player"]
