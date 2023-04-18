@@ -26,7 +26,7 @@ trap tearDown SIGTERM SIGINT
 
 # Launch server in the background, and wait for it to finish
 # If we just wait for server in the foreground, the trap above won't work
-/home/gunicorn/.local/bin/gunicorn --config /app/config/gunicorn.conf.py &
+ddtrace-run /home/gunicorn/.local/bin/gunicorn --config /app/config/gunicorn.conf.py &
 wait $!
 
 # When running in Kubernetes, we sleep a bit before exiting so the preStop
