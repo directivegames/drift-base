@@ -23,3 +23,22 @@ if os.environ.get('ENABLE_DATADOG_APM', '0') == '1':
 
 from drift.flaskfactory import drift_app
 app = drift_app()
+
+def parse_input():
+    from drift.core.extensions.jwt import current_user
+    from flask import request
+    response = {
+        "input": {
+            "method": request.method,
+            "path": [s for s in request.path.replace('/', ' ').split() if s],
+        }
+    }
+    if current_user:
+        response["input"].update({
+            "user": current_user.get('user_id', None)
+        })
+    return response
+
+from flask_opa import OPA
+
+app.opa = OPA(app, parse_input)

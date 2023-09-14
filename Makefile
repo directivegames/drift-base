@@ -74,13 +74,14 @@ local-config: ~/.drift/config/local/domain.json
 	pipenv run driftconfig cache local
 
 # Run app in Flask with logs to stdout, CTRL+C to stop
-run-flask: run-backend local-config
+run-flask: #run-backend local-config
 	DRIFT_USE_LOCAL_SERVERS=1 \
 	DRIFT_DEFAULT_TENANT=mw-tenant \
-	DRIFT_CONFIG_URL="redis://localhost:6379?prefix=local" \
-	DRIFT_TIER=LOCAL \
+	DRIFT_CONFIG_URL="redis://localhost:6379?prefix=kube" \
+	DRIFT_TIER=KUBE \
+	LOG_LEVEL=DEBUG \
 	FLASK_APP=driftbase.flask.driftbaseapp:app \
-	FLASK_RUN_PORT=8080 \
+	FLASK_RUN_PORT=8087 \
 	pipenv run flask run
 
 # Run app in Docker with logs to stdout, CTRL+C to stop

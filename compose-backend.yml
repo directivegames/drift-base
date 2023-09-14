@@ -15,6 +15,18 @@ services:
       - POSTGRES_HOST_AUTH_METHOD=trust
     networks:
       - backend
+  opa:
+    image: openpolicyagent/opa
+    container_name: opa
+    command:
+      - run
+      - --server
+      - --log-level
+      - debug
+    ports:
+      - "8181:8181"
+    networks:
+      - backend
 
 networks:
   backend:

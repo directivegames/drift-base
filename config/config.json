@@ -7,6 +7,8 @@
     "OPENAPI_REDOC_PATH": "/redoc",
     "OPENAPI_SWAGGER_UI_PATH": "/swagger",
     "OPENAPI_SWAGGER_UI_VERSION": "3.19.4",
+	"OPA_SECURED": 1,
+	"OPA_URL": "http://localhost:8181/v1/data/drift/allow",
     "SQLALCHEMY_ENGINE_OPTIONS": {
         "pool_pre_ping": true
     },
