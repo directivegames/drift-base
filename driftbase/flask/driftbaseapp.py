@@ -24,16 +24,19 @@ if os.environ.get('ENABLE_DATADOG_APM', '0') == '1':
 from drift.flaskfactory import drift_app
 app = drift_app()
 
+
 def parse_input():
     from drift.core.extensions.jwt import current_user
     from flask import request
     response = {
         "input": {
             "method": request.method,
-            "path": [s for s in request.path.replace('/', ' ').split() if s],
+            "path": request.path.strip('/').split('/'),
         }
     }
     if current_user:
+        # This depends on jwtsession having been run first
+        # jwt check could be dropped in favor of passing it to OPA
         response["input"].update({
             "user": current_user.get('user_id', None)
         })

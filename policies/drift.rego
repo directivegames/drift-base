@@ -1,13 +1,13 @@
 package drift
 
-default allow = false
+default allow := false
 
 allow {
-    input.method = "POST"
-    input.path = ["auth"]
+    input.method == "POST"
+    input.path == ["auth"]
 }
 
 allow {
-    input.method = "GET"
-    input.path = ["clients"]
+    input.method == "GET"
+    input.path == ["clients"]
 }
