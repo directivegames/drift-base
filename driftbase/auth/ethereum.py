@@ -8,11 +8,10 @@ from json import JSONDecodeError
 import eth_keys.exceptions
 import eth_utils.exceptions
 import marshmallow as ma
+import siwe
 from drift.blueprint import abort
 from eth_account import Account
 from eth_account.messages import encode_defunct
-
-import siwe
 
 from driftbase.auth import get_provider_config
 from .authenticate import authenticate as base_authenticate, AuthenticationException, ServiceUnavailableException, \
@@ -56,7 +55,8 @@ def authenticate(auth_info):
     # We no longer hash the user ID, so we pass the old "username" as a fallback to be upgraded
     username = f"ethereum:{identity_id}"
     # FIXME: The static salt should perhaps be configured per tenant
-    fallback_username = "ethereum:" + pbkdf2_hmac('sha256', identity_id.encode('utf-8'), b'static_salt', iterations=1).hex()
+    fallback_username = "ethereum:" + pbkdf2_hmac('sha256', identity_id.encode('utf-8'), b'static_salt',
+                                                  iterations=1).hex()
     return base_authenticate(username, "", automatic_account_creation, fallback_username=fallback_username)
 
 
@@ -94,14 +94,23 @@ def _run_ethereum_message_validation(signer, message, signature, timestamp_leewa
         try:
             timestamp = datetime.datetime.fromisoformat(message_json['timestamp'][:-1])
             if utcnow() - timestamp > datetime.timedelta(seconds=timestamp_leeway):
+                log.info("Login failed: Timestamp out of bounds",
+                         extra=dict(ticket_time=timestamp, current_time=utcnow(), time_diff=utcnow() - timestamp,
+                                    leeway=timestamp_leeway))
                 raise UnauthorizedException("Timestamp out of bounds")
-            if utcnow() + datetime.timedelta(seconds=5) < timestamp:
+            if utcnow() + datetime.timedelta(seconds=timestamp_leeway) < timestamp:
+                log.info("Login failed: Timestamp is in the future",
+                         extra=dict(ticket_time=timestamp, current_time=utcnow(), time_diff=utcnow() - timestamp,
+                                    leeway=timestamp_leeway))
                 raise UnauthorizedException("Timestamp is in the future")
         except KeyError:
             raise UnauthorizedException("Missing timestamp")
 
         if recovered != signer.lower():
             raise UnauthorizedException("Signer does not match passed in address")
+
+        log.info("Ethereum login succeeded", extra=dict(signer=recovered, payload=message_json))
+
     except JSONDecodeError:
         # Message is not JSON, it's probably EIP-4361
         try:
