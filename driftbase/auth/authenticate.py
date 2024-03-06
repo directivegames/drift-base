@@ -153,6 +153,8 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         g.db.add(my_identity)
         g.db.flush()
         log.info(f"User Identity '{username}' has been created with id {my_identity.identity_id}")
+        current_app.extensions.get('shoutout').message("identity_created", identity_type=identity_type,
+                                                       identity_id=my_identity.identity_id, username=username)
     else:
         if not my_identity.check_password(password):
             abort(http_client.METHOD_NOT_ALLOWED, message="Incorrect password")
@@ -197,6 +199,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
                 g.db.add(role)
             my_identity.user_id = user_id
             log.info(f"User '{username}' has been created with user_id {user_id}")
+            current_app.extensions.get('shoutout').message("user_created", user_id=user_id, username=username)
 
     if my_user:
         user_roles = [r.role for r in my_user.roles]
@@ -226,6 +229,10 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
             g.db.flush()
             log.info(f"Player for user {my_user.user_id} has been created with player_id {my_player.player_id}"
                      f" and uuid {my_player.player_uuid}")
+            current_app.extensions.get('shoutout').message("player_created", user_id=user_id, username=username,
+                                                           player_id=my_player.player_id,
+                                                           player_identity=my_identity.identity_id,
+                                                           player_uuid=my_player.player_uuid.hex)
 
     if my_player:
         if my_player.player_uuid is None:
@@ -257,6 +264,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
     )
     cache = UserCache()
     cache.set_all(user_id, ret)
+    current_app.extensions.get('shoutout').message("player_login", **ret)
     return ret
 
 
