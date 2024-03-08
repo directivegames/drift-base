@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "71cb5416ce6af13ed2344f0db0ae0ba9bc1ac0ac34afcbad7e1cf1bf5d5603a1"
+            "sha256": "5362992aabe101ff7b0f5408e11b40e5f334b1a5b8bf0379976c1da4d47c3dfa"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -292,21 +292,21 @@
         },
         "boto3": {
             "hashes": [
-                "sha256:300888f0c1b6f32f27f85a9aa876f50f46514ec619647af7e4d20db74d339714",
-                "sha256:b26928f9a21cf3649cea20a59061340f3294c6e7785ceb6e1a953eb8010dc3ba"
+                "sha256:c26c31ceeeb2bc5d2bb96ba0fdc9a04d7b10e6e0b081c55b9cea9069a0be04dd",
+                "sha256:f8046e3e2d1186a49b49f7464c4811c265c86001f404dd1a96c4365c773a4245"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==1.34.56"
+            "version": "==1.34.57"
         },
         "botocore": {
             "hashes": [
-                "sha256:bffeb71ab21d47d4ecf947d9bdb2fbd1b0bbd0c27742cea7cf0b77b701c41d9f",
-                "sha256:fff66e22a5589c2d58fba57d1d95c334ce771895e831f80365f6cff6453285ec"
+                "sha256:9a5aa2034de9f0c367b4b61a92af0fa827f5c21affa19e0a284838a142e71083",
+                "sha256:c8dafe0ad378a88bcf4153e6972870b03fb5aab406b694202307500709940baf"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==1.34.56"
+            "version": "==1.34.57"
         },
         "bytecode": {
             "hashes": [
@@ -1885,11 +1885,11 @@
         },
         "python-drift": {
             "hashes": [
-                "sha256:5bd1cd2254212675103efe343b245f8efdee177a1bcf0e6d5e3f58c3f703a7f1",
-                "sha256:c2dd8c537d677953af4db794a1a52eb5dcf5eee86f6442d1e5308ced7a698104"
+                "sha256:2a21842fa673ff80449f6b7d7a0f1d6dd4144a2f90a54df82c88fff714668283",
+                "sha256:82207617433e6878fafe95055bb93dec60e5cd1d794753c7d971ac354bee5adb"
             ],
             "index": "pypi",
-            "version": "==0.19.0.dev38"
+            "version": "==0.19.0.dev39"
         },
         "python-driftconfig": {
             "hashes": [
@@ -2267,7 +2267,7 @@
                 "sha256:c97dfde1f7bd43a71c8d2a58e369e9b2bf692d1334ea9f9cae55add7d0dd0f84",
                 "sha256:fdb6d215c776278489906c2f8916e6e7d4f5a9b602ccbcfdf7f016fc8da0596e"
             ],
-            "markers": "python_version >= '3.10'",
+            "markers": "python_version >= '3.7'",
             "version": "==2.0.7"
         },
         "web3": {
@@ -3081,7 +3081,7 @@
                 "sha256:c97dfde1f7bd43a71c8d2a58e369e9b2bf692d1334ea9f9cae55add7d0dd0f84",
                 "sha256:fdb6d215c776278489906c2f8916e6e7d4f5a9b602ccbcfdf7f016fc8da0596e"
             ],
-            "markers": "python_version >= '3.10'",
+            "markers": "python_version >= '3.7'",
             "version": "==2.0.7"
         }
     }
