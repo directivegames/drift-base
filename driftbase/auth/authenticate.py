@@ -264,7 +264,13 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
     )
     cache = UserCache()
     cache.set_all(user_id, ret)
-    current_app.extensions.get('shoutout').message("player_login", **ret)
+    if user_id and player_id:
+        messaga_data = ret.copy()
+        player_identities= []
+        for identity in g.db.query(UserIdentity).filter(UserIdentity.name == username).all():
+            player_identities.append(dict(identity_id=identity.identity_id, identity_type=identity.identity_type, name=identity.name))
+        messaga_data['identities'] = player_identities
+        current_app.extensions.get('shoutout').message("player_login", **messaga_data)
     return ret
 
 
