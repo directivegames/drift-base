@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a37d46dbd17b7f8917d3d04b4be9cce3fb1ccb514e79fbe7731c7cb4f486d75f"
+            "sha256": "8f4cbff0c3a7d1620b9cbdee08866608f6e0e490f248e305d805f3f4f971d252"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -1877,19 +1877,19 @@
         },
         "python-drift": {
             "hashes": [
-                "sha256:6e3f66ad2b2e6cee74c654ad93e0702e869bea46fc777cc153d072074f201870",
-                "sha256:99a3f72fa96cdd3ed7f19470d530bccc8939dd1468de2b06a55a32c4b42be6e0"
+                "sha256:0a53f6561d811894d83684679ef7af4077f75761df027a5de146ed6023238ec1",
+                "sha256:61e80eabe27cc70ce9206fecb0789102fda902d9950439300fcc474708c000e4"
             ],
             "index": "pypi",
-            "version": "==0.19.0.dev48"
+            "version": "==0.19.0.dev49"
         },
         "python-driftconfig": {
             "hashes": [
-                "sha256:705e2d01706659b4a26907a53ad68fc6538ce2d4cb20391fdc278563fc2d887d",
-                "sha256:9077c9b10d812049d55167e1bf50c9575c9498b67f164cbfae25ae4c2918ac46"
+                "sha256:d5518756c44718bd923ba93847dcb70e4fb9e51824cb11bba147e057ead5a6f7",
+                "sha256:db7b2edb41e3c39c759521c80e533874dc315e67fbc43c55b9f71c92baa70922"
             ],
             "index": "pypi",
-            "version": "==0.6.0a8"
+            "version": "==0.5.1"
         },
         "pyunormalize": {
             "hashes": [

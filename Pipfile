@@ -4,14 +4,14 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-python-drift = "==0.19.0-dev.48"
+python-drift = "==0.19.0-dev.49"
 gevent = "*"
 requests = "*"
 boto3 = "*"
 botocore = "*"
 greenlet = "*"
 python-decouple = "*"
-python-driftconfig = "==0.6.0-alpha.8"
+python-driftconfig = "==0.5.1"
 psycogreen = "*"
 aws-assume-role-lib = "*"
 ddtrace = "*"
