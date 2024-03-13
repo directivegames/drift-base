@@ -24,7 +24,7 @@ TEST_USER_POOL_REGION = 'us-west-2'
 TEST_USER_POOL_ID = 'us-west-2_abc123'
 
 
-class TestEosAuthenticate(unittest.TestCase):
+class TestCognitoAuthenticate(unittest.TestCase):
     def test_fails_if_missing_or_incorrect_provider_name(self):
         with self.assertRaises(KeyError):
             cognito.authenticate(dict())
@@ -34,7 +34,7 @@ class TestEosAuthenticate(unittest.TestCase):
             cognito.authenticate(dict(provider='myspace'))
 
 
-class TestEosLoadProviderDetails(unittest.TestCase):
+class TestCognitoLoadProviderDetails(unittest.TestCase):
     def test_fails_if_provider_details_missing_or_wrong_type(self):
         with self.assertRaises(InvalidRequestException):
             cognito._load_provider_details(dict(token=None))
@@ -50,7 +50,7 @@ class TestEosLoadProviderDetails(unittest.TestCase):
         self.assertEqual(details['token'], 'abc')
 
 
-class TestEosValidate(unittest.TestCase):
+class TestCognitoValidate(unittest.TestCase):
     def test_fails_without_configuration(self):
         with mock.patch('driftbase.auth.cognito.get_provider_config') as config:
             config.return_value = None
@@ -70,7 +70,7 @@ class TestEosValidate(unittest.TestCase):
                 validation.assert_called_once_with('abc', ['xyz'], TEST_USER_POOL_REGION, TEST_USER_POOL_ID)
 
 
-class TestEosGetKeys(unittest.TestCase):
+class TestCognitoGetKeys(unittest.TestCase):
     def test_fails_when_failing_to_load_keys(self):
         with self.assertRaises(ServiceUnavailableException) as e:
             cognito._get_key_from_token(TEST_JWT, 'https://invalid.com/region/userpool/index.html')
@@ -94,7 +94,7 @@ class TestEosGetKeys(unittest.TestCase):
 
 
 @mock.patch('driftbase.auth.cognito.JWT_ALGORITHM', TEST_JWT_ALGORITHM)
-class TestEosRunAuthentication(unittest.TestCase):
+class TestCognitoRunAuthentication(unittest.TestCase):
     def setUp(self):
         self.token_audience = 'foo'
         self.valid_client_ids = [self.token_audience]
