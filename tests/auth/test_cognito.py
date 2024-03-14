@@ -101,7 +101,9 @@ class TestCognitoRunAuthentication(unittest.TestCase):
         self.expected_sub = 'cognito_account_id'
 
     def test_decodes_and_validates_the_sub(self):
-        payload = dict(aud=self.token_audience, iss=cognito.TRUSTED_ISSUER_URL_BASE, sub=self.expected_sub)
+        payload = dict(aud=self.token_audience, iss=cognito.TRUSTED_ISSUER_URL_BASE.format(
+            region=TEST_USER_POOL_REGION, user_pool_id=TEST_USER_POOL_ID
+        ), sub=self.expected_sub)
         token, jwk = _make_test_token_and_key(payload)
         with mock.patch('driftbase.auth.cognito._get_key_from_token', return_value=jwk.key):
             self.assertEqual(cognito._run_cognito_token_validation(token, self.valid_client_ids, TEST_USER_POOL_REGION,
@@ -179,10 +181,14 @@ class ProviderDetailsTests(BaseAuthTestCase):
 
     def test_auth(self):
         with mock.patch('driftbase.auth.cognito.get_provider_config') as config:
-            config.return_value = dict(client_ids=[self.token_audience])
+            config.return_value = dict(client_ids=[self.token_audience], user_pool_region=TEST_USER_POOL_REGION,
+                                       user_pool_id=TEST_USER_POOL_ID)
             test_cognito_account_id = pbkdf2_hmac('sha256', self.expected_sub.encode('utf-8'),
                                                   b'static_salt', iterations=1).hex()
-            payload = dict(aud=self.token_audience, iss=cognito.TRUSTED_ISSUER_URL_BASE, sub=self.expected_sub)
+            payload = dict(aud=self.token_audience,
+                           iss=cognito.TRUSTED_ISSUER_URL_BASE.format(region=TEST_USER_POOL_REGION,
+                                                                      user_pool_id=TEST_USER_POOL_ID),
+                           sub=self.expected_sub)
             token, jwk = _make_test_token_and_key(payload)
             with mock.patch('driftbase.auth.cognito._get_key_from_token', return_value=jwk.key):
                 user1 = self._auth_and_get_user(self.make_provider_data(token))

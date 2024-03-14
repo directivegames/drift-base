@@ -25,8 +25,8 @@ from .authenticate import authenticate as base_authenticate, AuthenticationExcep
 # See https://repost.aws/knowledge-center/decode-verify-cognito-json-token
 # for more information on how to validate a Cognito token.
 
-COGNITO_PUBLIC_KEYS_URL_TEMPLATE = "https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json"
-TRUSTED_ISSUER_URL_BASE = "https://cognito-idp.{region}.amazonaws.com/{userPoolId}"
+COGNITO_PUBLIC_KEYS_URL_TEMPLATE = "https://cognito-idp.{region}.amazonaws.com/{user_pool_id}/.well-known/jwks.json"
+TRUSTED_ISSUER_URL_BASE = "https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
 
 JWT_ALGORITHM = "RS256"
 JWT_LEEWAY = 10
@@ -104,7 +104,7 @@ def _validate_cognito_token(token):
 def _run_cognito_token_validation(token, client_ids, aws_region, user_pool_id):
     public_keys_url = COGNITO_PUBLIC_KEYS_URL_TEMPLATE.format(
         region=aws_region,
-        userPoolId=user_pool_id
+        user_pool_id=user_pool_id
     )
 
     public_key = _get_key_from_token(token, public_keys_url)
@@ -141,8 +141,8 @@ def _decode_and_verify_jwt(token, key, audience, aws_region, user_pool_id):
     issuer = payload.get("iss")
     if not issuer:
         raise UnauthorizedException("Invalid JWT, no issuer found")
-    truset_issuer = TRUSTED_ISSUER_URL_BASE.format(region=aws_region, userPoolId=user_pool_id)
-    if not issuer.startswith(TRUSTED_ISSUER_URL_BASE):
+    trusted_issuer = TRUSTED_ISSUER_URL_BASE.format(region=aws_region, user_pool_id=user_pool_id)
+    if not issuer == trusted_issuer:
         raise UnauthorizedException("Invalid JWT, issuer not trusted")
 
     return payload
