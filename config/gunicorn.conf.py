@@ -11,7 +11,7 @@ try:
     patch_psycopg()
     import sys
     sys.stderr.write("patch_psycopg() successful\n")
-except ImportError:
+except ImportError as e:
     print(f"Error importing/patching psycopg for gevent in gunicorn.conf.py: {e}")
 
 
