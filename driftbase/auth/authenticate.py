@@ -229,10 +229,11 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
             g.db.flush()
             log.info(f"Player for user {my_user.user_id} has been created with player_id {my_player.player_id}"
                      f" and uuid {my_player.player_uuid}")
-            current_app.extensions.get('shoutout').message("player_created", user_id=user_id, username=username,
-                                                           player_id=my_player.player_id,
-                                                           player_identity=my_identity.identity_id,
-                                                           player_uuid=my_player.player_uuid.hex)
+            if "player" in user_roles:
+                current_app.extensions.get('shoutout').message("player_created", user_id=user_id, username=username,
+                                                               player_id=my_player.player_id,
+                                                               player_identity=my_identity.identity_id,
+                                                               player_uuid=my_player.player_uuid.hex)
 
     if my_player:
         if my_player.player_uuid is None:
@@ -264,7 +265,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
     )
     cache = UserCache()
     cache.set_all(user_id, ret)
-    if user_id and player_id:
+    if user_id and player_id and "player" in user_roles:
         messaga_data = ret.copy()
         player_identities= []
         for identity in g.db.query(UserIdentity).filter(UserIdentity.name == username).all():

@@ -123,7 +123,7 @@ class TestEthereumRunAuthentication(unittest.TestCase):
 
     def test_fails_when_timestamp_is_in_the_future(self):
         with mock.patch('driftbase.auth.ethereum.utcnow') as now:
-            now.return_value = self.timestamp - datetime.timedelta(seconds=10)
+            now.return_value = self.timestamp - datetime.timedelta(seconds=ethereum.DEFAULT_TIMESTAMP_LEEWAY + 50)
             with self.assertRaises(UnauthorizedException):
                 ethereum._run_ethereum_message_validation(self.address, self.message, self.signature)
 
