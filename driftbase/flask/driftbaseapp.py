@@ -3,7 +3,7 @@ Flask app with gevent monkey patching.
 """
 try:
     from gevent import monkey
-    monkey.patch_module("threading")  # noqa: E402
+    monkey.patch_thread()
 except ImportError:
     print(f"Failed to patch 'threading' module with gevent monkey patching")
 
