@@ -1,6 +1,10 @@
 """
 Flask app with gevent monkey patching.
 """
+
+from gevent import monkey
+monkey.patch_module("threading")  # noqa: E402
+
 from drift.flaskfactory import drift_app  # Do this first for gevent monkey patching
 import os
 

@@ -1,3 +1,15 @@
+try:
+    from gevent import monkey
+    monkey.patch_all()
+except ImportError as e:
+    print(f"Error importing/patching for gevent in gunicorn.conf.py: {e}")
+
+try:
+    from psycogreen.gevent import patch_psycopg
+    patch_psycopg()
+except ImportError:
+    print(f"Error importing/patching psycopg for gevent in gunicorn.conf.py: {e}")
+
 wsgi_app = 'driftbase.flask.driftbaseapp:app'
 
 # log to stdout
