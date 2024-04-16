@@ -1,11 +1,10 @@
 import http.client
-
 import http.client as http_client
 import logging
 import uuid
 
-from flask import g, current_app
 from drift.blueprint import abort
+from flask import g, current_app
 
 from driftbase.models.db import User, CorePlayer, UserIdentity, UserRole
 from driftbase.utils import UserCache
@@ -104,15 +103,15 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
 
     my_identity = (
         g.db.query(UserIdentity)
-            .filter(UserIdentity.name == username)
-            .first()
+        .filter(UserIdentity.name == username)
+        .first()
     )
 
     if not my_identity and fallback_username:
         my_identity = (
             g.db.query(UserIdentity)
-                .filter(UserIdentity.name == fallback_username)
-                .first()
+            .filter(UserIdentity.name == fallback_username)
+            .first()
         )
 
     try:

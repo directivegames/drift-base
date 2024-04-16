@@ -17,7 +17,7 @@ from driftbase.models.db import User, CorePlayer, UserIdentity
 # Authentication types that hash their usernames
 HASHING_IDENTITY_PROVIDERS = ("eos", "ethereum", "gamecenter", "cognito")
 # Authentication types that used to hash their usernames, but now lazily convert them to clear text
-LEGACY_HASHING_IDENTITY_PROVIDERS = ("ethereum")
+LEGACY_HASHING_IDENTITY_PROVIDERS = ("eos", "ethereum", "cognito")
 
 log = logging.getLogger(__name__)
 

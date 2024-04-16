@@ -49,9 +49,10 @@ def authenticate(auth_info):
         abort_unauthorized(e.msg)
 
     automatic_account_creation = auth_info.get('automatic_account_creation', True)
+    username = f"eos:{identity_id}"
     # FIXME: The static salt should perhaps be configured per tenant
-    username = "eos:" + pbkdf2_hmac('sha256', identity_id.encode('utf-8'), b'static_salt', iterations=1).hex()
-    return base_authenticate(username, "", automatic_account_creation)
+    fallback_username = "eos:" + pbkdf2_hmac('sha256', identity_id.encode('utf-8'), b'static_salt', iterations=1).hex()
+    return base_authenticate(username, "", automatic_account_creation, fallback_username=fallback_username)
 
 
 def _load_provider_details(provider_details):
