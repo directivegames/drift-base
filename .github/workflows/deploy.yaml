@@ -23,19 +23,18 @@ jobs:
     needs: test
     steps:
       - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v0
+        uses: gittools/actions/gitversion/setup@v1
         with:
           versionSpec: '5.x'
 
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          cache: 'pipenv'
           fetch-depth: 0
 
       - name: Determine version
         id: gitversion
-        uses: gittools/actions/gitversion/execute@v0
+        uses: gittools/actions/gitversion/execute@v1
         with:
           useConfigFile: true
 
@@ -44,7 +43,7 @@ jobs:
           echo "SemVer: ${{ steps.gitversion.outputs.semVer }}"
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -54,7 +53,7 @@ jobs:
           pip install wheel pipenv
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.DG_AWS_GITHUB_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.DG_AWS_GITHUB_SECRET_ACCESS_KEY }}

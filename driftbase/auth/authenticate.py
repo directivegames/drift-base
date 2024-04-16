@@ -1,11 +1,10 @@
 import http.client
-
 import http.client as http_client
 import logging
 import uuid
 
-from flask import g, current_app
 from drift.blueprint import abort
+from flask import g, current_app
 
 from driftbase.models.db import User, CorePlayer, UserIdentity, UserRole
 from driftbase.utils import UserCache
@@ -104,15 +103,15 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
 
     my_identity = (
         g.db.query(UserIdentity)
-            .filter(UserIdentity.name == username)
-            .first()
+        .filter(UserIdentity.name == username)
+        .first()
     )
 
     if not my_identity and fallback_username:
         my_identity = (
             g.db.query(UserIdentity)
-                .filter(UserIdentity.name == fallback_username)
-                .first()
+            .filter(UserIdentity.name == fallback_username)
+            .first()
         )
 
     try:
@@ -152,7 +151,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
 
         g.db.add(my_identity)
         g.db.flush()
-        log.info(f"User Identity '{username}' has been created with id {my_identity.identity_id}")
+        log.info("Created new user identity", extra={'identity_id': my_identity.identity_id, 'username': username})
         current_app.extensions.get('shoutout').message("identity_created", identity_type=identity_type,
                                                        identity_id=my_identity.identity_id, username=username)
     else:
@@ -165,7 +164,8 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         if fallback_username and my_identity.name != username:
             my_identity.name = username
             g.db.flush()
-            log.info(f"User Identity '{username}' has been upgraded from the legacy username format '{fallback_username}'")
+            log.info("User Identity has been upgraded from the legacy username format",
+                     extra={'identity_id': identity_id, 'old_username': fallback_username, 'new_username': username})
 
     my_user = None
     my_player = None
@@ -198,7 +198,8 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
                 role = UserRole(user_id=user_id, role=role_name)
                 g.db.add(role)
             my_identity.user_id = user_id
-            log.info(f"User '{username}' has been created with user_id {user_id}")
+            log.info("Created new user for identity",
+                     extra={'identity_id': my_identity.identity_id, 'user_id': user_id, 'user_name': username})
             current_app.extensions.get('shoutout').message("user_created", user_id=user_id, username=username)
 
     if my_user:
@@ -267,9 +268,10 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
     cache.set_all(user_id, ret)
     if user_id and player_id and "player" in user_roles:
         messaga_data = ret.copy()
-        player_identities= []
+        player_identities = []
         for identity in g.db.query(UserIdentity).filter(UserIdentity.name == username).all():
-            player_identities.append(dict(identity_id=identity.identity_id, identity_type=identity.identity_type, name=identity.name))
+            player_identities.append(
+                dict(identity_id=identity.identity_id, identity_type=identity.identity_type, name=identity.name))
         messaga_data['identities'] = player_identities
         current_app.extensions.get('shoutout').message("player_login", **messaga_data)
     return ret
