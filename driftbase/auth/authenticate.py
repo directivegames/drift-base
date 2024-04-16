@@ -151,7 +151,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
 
         g.db.add(my_identity)
         g.db.flush()
-        log.info(f"User Identity '{username}' has been created with id {my_identity.identity_id}")
+        log.info("Created new user identity", extra={'identity_id': my_identity.identity_id, 'username': username})
         current_app.extensions.get('shoutout').message("identity_created", identity_type=identity_type,
                                                        identity_id=my_identity.identity_id, username=username)
     else:
@@ -164,7 +164,8 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         if fallback_username and my_identity.name != username:
             my_identity.name = username
             g.db.flush()
-            log.info(f"User Identity '{username}' has been upgraded from the legacy username format '{fallback_username}'")
+            log.info("User Identity has been upgraded from the legacy username format",
+                     extra={'identity_id': identity_id, 'old_username': fallback_username, 'new_username': username})
 
     my_user = None
     my_player = None
@@ -197,7 +198,8 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
                 role = UserRole(user_id=user_id, role=role_name)
                 g.db.add(role)
             my_identity.user_id = user_id
-            log.info(f"User '{username}' has been created with user_id {user_id}")
+            log.info("Created new user for identity",
+                     extra={'identity_id': my_identity.identity_id, 'user_id': user_id, 'user_name': username})
             current_app.extensions.get('shoutout').message("user_created", user_id=user_id, username=username)
 
     if my_user:
