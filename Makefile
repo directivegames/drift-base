@@ -61,7 +61,7 @@ push: env-guard-REGISTRY
 	docker push ${IMAGE_NAME}:${VERSION}
 
 test: run-backend
-	pipenv run pytest .
+	pipenv run python -m gevent.monkey --module pytest --cov --disable-warnings tests/
 
 # Convenience targets
 
