@@ -1,6 +1,5 @@
 import json
 import unittest
-from hashlib import pbkdf2_hmac
 from unittest import mock
 
 import jwt
@@ -183,8 +182,6 @@ class ProviderDetailsTests(BaseAuthTestCase):
         with mock.patch('driftbase.auth.cognito.get_provider_config') as config:
             config.return_value = dict(client_ids=[self.token_audience], user_pool_region=TEST_USER_POOL_REGION,
                                        user_pool_id=TEST_USER_POOL_ID)
-            test_cognito_account_id = pbkdf2_hmac('sha256', self.expected_sub.encode('utf-8'),
-                                                  b'static_salt', iterations=1).hex()
             payload = dict(aud=self.token_audience,
                            iss=cognito.TRUSTED_ISSUER_URL_BASE.format(region=TEST_USER_POOL_REGION,
                                                                       user_pool_id=TEST_USER_POOL_ID),
@@ -198,4 +195,4 @@ class ProviderDetailsTests(BaseAuthTestCase):
             assert user1['identity_id'] == user2['identity_id']
             assert user1['user_id'] == user2['user_id']
             assert user1['provider_user_id'] == user2['provider_user_id']
-            assert user1['provider_user_id'] == f"cognito:{test_cognito_account_id}"
+            assert user1['provider_user_id'] == f"cognito:{self.expected_sub}"
