@@ -48,7 +48,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install wheel pipenv
-          pipenv install --dev --system
+          pipenv install --dev
 
       - name: Run PyTest
         run: pipenv run python -m gevent.monkey --module pytest --cov=driftbase/ --disable-warnings tests/
