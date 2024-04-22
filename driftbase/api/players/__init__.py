@@ -75,6 +75,24 @@ def drift_init_extension(app, **kwargs):
     app.register_blueprint(summary.bp)
     app.register_blueprint(tickets.bp)
     endpoints.init_app(app)
+    app.extensions["shoutout"].listen("drift-seasons:set_player_name", _handle_set_player_name_from_seasons)
+
+
+def _handle_set_player_name_from_seasons(*args, **kwargs):
+    # C/P from _patch method below to quickly support letting seasons change player names
+    new_name = kwargs.get("player_name")
+    player_id = kwargs.get("player_id")
+    log.info(f"Handling event from drift-seasons: {args=} - {kwargs=}")
+    my_player = g.db.query(CorePlayer).get(player_id)
+    if not my_player:
+        log.warning(f"Player {player_id} does not exist")
+        return
+
+    old_name = my_player.player_name
+    my_player.player_name = new_name
+    g.db.commit()
+    log.info("Player changed name from '%s' to '%s'", old_name, new_name)
+    return my_player
 
 
 # TODO: Have this configured on a per product level and use drift config to specify it.

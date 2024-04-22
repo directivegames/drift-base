@@ -65,7 +65,7 @@ class SandboxTest(BaseCloudkitTest):
         self.assertIn("connection_info", data)
 
 
-    #@unittest.skip
+    @unittest.skip("Flaky test because of threads")
     def test_put_pending_placement(self):
         """NOTE:  This test is flaky as fuck since the threads may trample each other's auth headers"""
         # Create a placement but don't fulfill it
