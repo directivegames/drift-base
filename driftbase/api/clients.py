@@ -241,7 +241,7 @@ class ClientsAPI(MethodView):
 def get_client(client_id):
     """
     Check whether the caller has access to this client and return a
-    response if he does not. Otherwise return None
+    response if he does not. Otherwise, return None
     """
     player_id = current_user["player_id"]
     client = g.db.query(Client).get(client_id)
@@ -249,7 +249,7 @@ def get_client(client_id):
         log.warning("User attempted to retrieve a client that is not registered: %s" %
                     player_id)
         abort(http_client.NOT_FOUND, description="This client is not registered", )
-    if client.player_id != player_id:
+    if client.player_id != player_id and "service" not in current_user["roles"]:
         log.error("User attempted to update/delete a client that is "
                   "registered to another player, %s vs %s",
                   player_id, client.player_id)

@@ -179,7 +179,7 @@ class TestEthereumEIP4361RunAuthentication(unittest.TestCase):
     def test_fails_when_account_does_not_match_signature(self):
         with mock.patch('driftbase.auth.ethereum.utcnow') as now:
             now.return_value = self.timestamp + datetime.timedelta(seconds=5)
-            with self.assertRaises(UnauthorizedException):
+            with self.assertRaises(UnauthorizedException) as err:
                 signature = self.signature.replace('0x03', '0x06')
                 ethereum._run_ethereum_message_validation(self.address, self.message, signature)
-
+            self.assertEqual("Bad signature", str(err.exception.msg))
