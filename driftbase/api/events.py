@@ -4,7 +4,7 @@ import json
 import logging
 from json import JSONDecodeError
 
-from flask import request, url_for, jsonify
+from flask import request, url_for, jsonify, current_app
 from flask.views import MethodView
 from drift.blueprint import Blueprint, abort
 
@@ -70,6 +70,9 @@ class EventsAPI(MethodView):
             else:
                 event["player_id"] = player_id  # Always override!
             eventlogger.info("eventlog", extra={"extra": event})
+
+        if events:
+            current_app.extensions.get('shoutout').message("eventlog:events", events=events)
 
         if request.headers.get("Accept") == "application/json":
             return jsonify(status="OK"), http_client.CREATED

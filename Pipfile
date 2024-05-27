@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-python-drift = "~=0.20.2"
+python-drift = "~=0.21.1"
 gevent = "*"
 requests = "*"
 boto3 = "*"
