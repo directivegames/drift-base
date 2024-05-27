@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "drift-base"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+python-drift = "^0.21.1"
+gevent = "^24.2.1"
+requests = "^2.31.0"
+boto3 = "^1.34.88"
+greenlet = "^3.0.3"
+python-decouple = "^3.8"
+python-driftconfig = "~0.5.2"
+psycogreen = "^1.0.2"
+aws-assume-role-lib = "^2.10.0"
+ddtrace = "^2.8.1"
+eth-account = "^0.11"
+sqlalchemy = "<2"
+flask-marshmallow = "~0.14.0"
+siwe = "^4.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "~8.0"
+codecov = "^2.1.13"
+pytest-cov = "^4.1.0"
+responses = "^0.25.0"
+mock = "^5.1.0"
+
+[[tool.poetry.source]]
+name = "directive"
+url = "https://nexus.directivegames.com/repository/pypi/simple"
+priority = "primary"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
