@@ -5,6 +5,8 @@ from mock import patch
 
 from drift.test_helpers.systesthelper import uuid_string
 from driftbase.utils.test_utils import BaseCloudkitTest
+from unittest import mock
+import uuid
 
 BIG_NUMBER = 9999999999
 
@@ -133,10 +135,16 @@ class PlayersTest(BaseCloudkitTest):
 
         self.assertEqual(self.get(player_url).json()["player_name"], old_name)
 
-        new_name = "new name %s" % uuid_string()
-        r = self.patch(player_url, data={"name": new_name})
-        self.assertEqual(r.json()["player_name"], new_name)
-        self.assertEqual(self.get(player_url).json()["player_name"], new_name)
+        shoutout_mock = mock.Mock()
+        with mock.patch("driftbase.api.players._get_shoutout", return_value=shoutout_mock):
+
+            new_name = "new name %s" % uuid_string()
+            r = self.patch(player_url, data={"name": new_name})
+            self.assertEqual(r.json()["player_name"], new_name)
+            self.assertEqual(self.get(player_url).json()["player_name"], new_name)
+
+            shoutout_mock.message.assert_called_once_with("player_updated", player_id=r.json().get('player_id'), player_name=r.json().get('player_name'),
+                                                          player_uuid=uuid.UUID(r.json().get('player_uuid')).hex)
 
     def test_change_name_put(self):
         # verify that the temporary put versions of the patch endpoints work
@@ -147,6 +155,34 @@ class PlayersTest(BaseCloudkitTest):
         r = self.put(player_url, data={"name": new_name})
         self.assertEqual(r.json()["player_name"], new_name)
         self.assertEqual(self.get(player_url).json()["player_name"], new_name)
+
+    def test_change_name_from_event(self):
+        from driftbase.api.players import _handle_set_player_name_from_seasons
+
+        player_new_name = 'New Name'
+        player_id = 1
+        player_uuid_hex = '1234567890abcdef1234567890abcdef'
+
+
+        mock_player = mock.Mock()
+        mock_player.player_name = 'Old Name'
+        mock_player.player_uuid = uuid.UUID(player_uuid_hex)
+
+        #Mocking the database
+        mock_g = mock.Mock()
+        mock_g.query().get.return_value = mock_player
+
+        shoutout_mock = mock.Mock()
+
+        with mock.patch("driftbase.api.players._get_shoutout", return_value=shoutout_mock):
+            with mock.patch("driftbase.api.players._get_db", return_value=mock_g):
+
+                _handle_set_player_name_from_seasons(player_id=player_id, player_name=player_new_name)
+
+                mock_g.commit.assert_called_once()
+                shoutout_mock.message.assert_called_once_with("player_updated", player_id=player_id,
+                                                              player_name=player_new_name,
+                                                              player_uuid=player_uuid_hex)
 
     def test_root_endpoints(self):
         # Verify that my_xxx endpoints are populated after authentication
