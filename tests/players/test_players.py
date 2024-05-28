@@ -174,15 +174,15 @@ class PlayersTest(BaseCloudkitTest):
 
         shoutout_mock = mock.Mock()
 
-        with mock.patch("driftbase.api.players._get_shoutout", return_value=shoutout_mock):
-            with mock.patch("driftbase.api.players._get_db", return_value=mock_g):
+        with (mock.patch("driftbase.api.players._get_shoutout", return_value=shoutout_mock),
+              mock.patch("driftbase.api.players._get_db", return_value=mock_g)):
 
-                _handle_set_player_name_from_seasons(player_id=player_id, player_name=player_new_name)
+            _handle_set_player_name_from_seasons(player_id=player_id, player_name=player_new_name)
 
-                mock_g.commit.assert_called_once()
-                shoutout_mock.message.assert_called_once_with("player_updated", player_id=player_id,
-                                                              player_name=player_new_name,
-                                                              player_uuid=player_uuid_hex)
+            mock_g.commit.assert_called_once()
+            shoutout_mock.message.assert_called_once_with("player_updated", player_id=player_id,
+                                                          player_name=player_new_name,
+                                                          player_uuid=player_uuid_hex)
 
     def test_root_endpoints(self):
         # Verify that my_xxx endpoints are populated after authentication
