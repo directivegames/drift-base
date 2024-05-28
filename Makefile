@@ -61,17 +61,17 @@ push: env-guard-REGISTRY
 	docker push ${IMAGE_NAME}:${VERSION}
 
 test: run-backend
-	pipenv run python -m gevent.monkey --module pytest --cov --disable-warnings tests/
+	poetry run python -m gevent.monkey --module pytest --cov --disable-warnings tests/
 
 # Convenience targets
 
 .PHONY: local-config run-app run-appd run-backend stop-app stop-backend stop-all
 
 ~/.drift/config/local/domain.json: scripts/create-config.sh
-	pipenv run ./scripts/create-config.sh
+	poetry run ./scripts/create-config.sh
 
 local-config: ~/.drift/config/local/domain.json
-	pipenv run driftconfig cache local
+	poetry run driftconfig cache local
 
 # Run app in Flask with logs to stdout, CTRL+C to stop
 run-flask: run-backend local-config
@@ -81,7 +81,7 @@ run-flask: run-backend local-config
 	DRIFT_TIER=LOCAL \
 	FLASK_APP=driftbase.flask.driftbaseapp:app \
 	FLASK_RUN_PORT=8080 \
-	pipenv run flask run
+	poetry run flask run --reload
 
 # Run app in Docker with logs to stdout, CTRL+C to stop
 run-app: run-backend local-config
