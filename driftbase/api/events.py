@@ -6,8 +6,10 @@ from json import JSONDecodeError
 
 from flask import request, url_for, jsonify, current_app
 from flask.views import MethodView
+
 from drift.blueprint import Blueprint, abort
 
+from drift.core.extensions.driftconfig import get_feature_switch
 from drift.core.extensions.jwt import current_user
 from drift.core.extensions.urlregistry import Endpoints
 
@@ -71,8 +73,10 @@ class EventsAPI(MethodView):
                 event["player_id"] = player_id  # Always override!
             eventlogger.info("eventlog", extra={"extra": event})
 
-        if events:
-            current_app.extensions.get('shoutout').message("eventlog:events", events=events)
+        if get_feature_switch('enable_eventlog_shoutout_forwarding') and is_service:
+            events_to_shoutout = [event for event in events if not event.get('event_name', '').startswith('drift.')]
+            if events_to_shoutout:
+                current_app.extensions.get('shoutout').message("eventlog:events", events=events_to_shoutout)
 
         if request.headers.get("Accept") == "application/json":
             return jsonify(status="OK"), http_client.CREATED
