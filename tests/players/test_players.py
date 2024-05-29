@@ -143,7 +143,7 @@ class PlayersTest(BaseCloudkitTest):
             self.assertEqual(r.json()["player_name"], new_name)
             self.assertEqual(self.get(player_url).json()["player_name"], new_name)
 
-            shoutout_mock.message.assert_called_once_with("player_name_updated", player_id=r.json().get('player_id'), player_name=r.json().get('player_name'),
+            shoutout_mock.message.assert_called_once_with("player:name_updated", player_id=r.json().get('player_id'), previous_name=old_name, player_name=r.json().get('player_name'),
                                                           player_uuid=uuid.UUID(r.json().get('player_uuid')).hex)
 
     def test_change_name_put(self):
@@ -159,13 +159,13 @@ class PlayersTest(BaseCloudkitTest):
     def test_change_name_from_event(self):
         from driftbase.api.players import _handle_set_player_name_from_seasons
 
+        player_old_name = 'Old Name'
         player_new_name = 'New Name'
         player_id = 1
         player_uuid_hex = '1234567890abcdef1234567890abcdef'
 
-
         mock_player = mock.Mock()
-        mock_player.player_name = 'Old Name'
+        mock_player.player_name = player_old_name
         mock_player.player_uuid = uuid.UUID(player_uuid_hex)
 
         #Mocking the database
@@ -180,7 +180,8 @@ class PlayersTest(BaseCloudkitTest):
             _handle_set_player_name_from_seasons(player_id=player_id, player_name=player_new_name)
 
             mock_g.commit.assert_called_once()
-            shoutout_mock.message.assert_called_once_with("player_name_updated", player_id=player_id,
+            shoutout_mock.message.assert_called_once_with("player:name_updated", player_id=player_id,
+                                                          previous_name=player_old_name,
                                                           player_name=player_new_name,
                                                           player_uuid=player_uuid_hex)
 

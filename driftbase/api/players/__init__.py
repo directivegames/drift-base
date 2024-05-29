@@ -103,11 +103,12 @@ def _handle_set_player_name_from_seasons(*args, **kwargs):
 
     message_data = dict(
         player_id=player_id,
+        previous_name=old_name,
         player_name=my_player.player_name,
         player_uuid=my_player.player_uuid.hex if my_player.player_uuid else None,
     )
 
-    _get_shoutout().message("player_name_updated", **message_data)
+    _get_shoutout().message("player:name_updated", **message_data)
     return my_player
 
 
@@ -212,11 +213,12 @@ class PlayerAPI(MethodView):
 
         message_data = dict(
             player_id=player_id,
+            previous_name=old_name,
             player_name=my_player.player_name,
             player_uuid=my_player.player_uuid.hex if my_player.player_uuid else None,
         )
 
-        _get_shoutout().message("player_name_updated", **message_data)
+        _get_shoutout().message("player:name_updated", **message_data)
 
         return my_player
 
