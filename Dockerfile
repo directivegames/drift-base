@@ -52,6 +52,8 @@ RUN set -ex \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
 COPY --chown=gunicorn:gunicorn --from=builder /root/.app/ /home/gunicorn/.local/
 COPY . .
 
