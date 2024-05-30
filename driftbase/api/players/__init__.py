@@ -3,7 +3,7 @@ import logging
 import marshmallow as ma
 from drift.core.extensions.jwt import current_user
 from drift.core.extensions.urlregistry import Endpoints
-from flask import g, url_for
+from flask import g, url_for, current_app
 from flask.views import MethodView
 from drift.blueprint import Blueprint, abort
 from marshmallow import validates, ValidationError
@@ -28,6 +28,12 @@ log = logging.getLogger(__name__)
 bp = Blueprint('players', __name__, url_prefix='/players')
 
 endpoints = Endpoints()
+
+def _get_shoutout():
+    return current_app.extensions["shoutout"]
+
+def _get_db():
+    return g.db
 
 
 class PlayersListArgs(ma.Schema):
@@ -80,18 +86,29 @@ def drift_init_extension(app, **kwargs):
 
 def _handle_set_player_name_from_seasons(*args, **kwargs):
     # C/P from _patch method below to quickly support letting seasons change player names
+
     new_name = kwargs.get("player_name")
     player_id = kwargs.get("player_id")
     log.info(f"Handling event from drift-seasons: {args=} - {kwargs=}")
-    my_player = g.db.query(CorePlayer).get(player_id)
+    db_session = _get_db()
+    my_player = db_session.query(CorePlayer).get(player_id)
     if not my_player:
         log.warning(f"Player {player_id} does not exist")
         return
 
     old_name = my_player.player_name
     my_player.player_name = new_name
-    g.db.commit()
+    db_session.commit()
     log.info("Player changed name from '%s' to '%s'", old_name, new_name)
+
+    message_data = dict(
+        player_id=player_id,
+        previous_name=old_name,
+        player_name=my_player.player_name,
+        player_uuid=my_player.player_uuid.hex if my_player.player_uuid else None,
+    )
+
+    _get_shoutout().message("player:name_updated", **message_data)
     return my_player
 
 
@@ -110,7 +127,7 @@ class PlayersListAPI(MethodView):
 
         Retrieves multiple players based on input filters
         """
-        query = g.db.query(CorePlayer)
+        query = _get_db().query(CorePlayer)
         rows = min(args.get('rows') or 10, 100)
         if 'player_id' in args:
             query = query.filter(CorePlayer.player_id.in_(args['player_id']))
@@ -148,14 +165,15 @@ class PlayerAPI(MethodView):
 
         Retrieve information about a specific player
         """
-        player = g.db.query(CorePlayer).get(player_id)
+        db_session = _get_db()
+        player = db_session.query(CorePlayer).get(player_id)
         if not player:
             abort(http_client.NOT_FOUND)
 
         ret = PlayerSchema(many=False).dump(player)
 
         if args.get("include_total_match_time"):
-            match_time_query = g.db.query(func.sum(MatchPlayer.seconds)).filter(MatchPlayer.player_id == player_id)
+            match_time_query = db_session.query(func.sum(MatchPlayer.seconds)).filter(MatchPlayer.player_id == player_id)
 
             ret["total_match_time_seconds"] = match_time_query.scalar() or 0
 
@@ -184,13 +202,24 @@ class PlayerAPI(MethodView):
 
         if player_id != current_user["player_id"]:
             abort(http_client.FORBIDDEN, message="That is not your player!")
-        my_player = g.db.query(CorePlayer).get(player_id)
+        db_session = _get_db()
+        my_player = db_session.query(CorePlayer).get(player_id)
         if not my_player:
             abort(http_client.NOT_FOUND)
         old_name = my_player.player_name
         my_player.player_name = new_name
-        g.db.commit()
+        db_session.commit()
         log.info("Player changed name from '%s' to '%s'", old_name, new_name)
+
+        message_data = dict(
+            player_id=player_id,
+            previous_name=old_name,
+            player_name=my_player.player_name,
+            player_uuid=my_player.player_uuid.hex if my_player.player_uuid else None,
+        )
+
+        _get_shoutout().message("player:name_updated", **message_data)
+
         return my_player
 
 
