@@ -42,16 +42,6 @@ jobs:
         run: |
           echo "SemVer: ${{ steps.gitversion.outputs.semVer }}"
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install wheel pipenv
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -72,8 +62,8 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           PYPI_USERNAME: ${{ secrets.DG_TWINE_USERNAME }}
-          PYPI_PASSWORD: ${{ secrets.DG_TWINE_PASSWORD }}
+          POETRY_HTTP_BASIC_DIRECTIVE_PASSWORD: ${{ secrets.DG_TWINE_PASSWORD }}
         run: |
           echo "PYPI_USERNAME=${PYPI_USERNAME}" >.env
-          echo "PYPI_PASSWORD=${PYPI_PASSWORD}" >>.env
+          echo "PYPI_PASSWORD=${POETRY_HTTP_BASIC_DIRECTIVE_PASSWORD}" >>.env
           make build push REGISTRY=${{ steps.login-ecr.outputs.registry }} REF=${{ github.ref }} VERSION=${{ steps.gitversion.outputs.semVer }}
