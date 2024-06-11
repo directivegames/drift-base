@@ -16,7 +16,7 @@ def do_patch():
         print(f"Error importing/patching psycopg for gevent in gunicorn.conf.py: {e}")
 
     try:
-        from drift.core.extensions.tracing import patch
+        from drift.core.contrib.datadog.patch import patch
         patch()
         import sys
         sys.stderr.write("patch_shoutout() successful\n")
