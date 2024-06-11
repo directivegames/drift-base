@@ -2903,13 +2903,13 @@ reference = "directive"
 
 [[package]]
 name = "python-drift"
-version = "0.21.1"
+version = "0.23.0.dev35"
 description = "\"Micro-framework for SOA based applications\""
 optional = false
 python-versions = "*"
 files = [
-    {file = "python_drift-0.21.1-py3-none-any.whl", hash = "sha256:eed491783761d5b0c170b4783f42eb7ffaef2fe3128d340a8bff78c03b932677"},
-    {file = "python_drift-0.21.1.tar.gz", hash = "sha256:6a98d5942594abddb804f984b174961592f226431729805ee78ed9ed0e414fd6"},
+    {file = "python_drift-0.23.0.dev35-py3-none-any.whl", hash = "sha256:927ae13e52d04b6d5f048767584849069ed1259a283fb24a281bc3fbee85d16a"},
+    {file = "python_drift-0.23.0.dev35.tar.gz", hash = "sha256:6f7741fd490bdb1e6d7167dea88d26bac37521d9324b9f55c261fe5c2fc43b8b"},
 ]
 
 [package.dependencies]
@@ -2936,7 +2936,7 @@ SQLAlchemy = "<2.0"
 webargs = "*"
 
 [package.extras]
-test = ["mock", "pytest (>=5.0)", "pytest-cov", "requests", "responses"]
+test = ["ddtrace", "mock", "pytest (>=5.0)", "pytest-cov", "requests", "responses"]
 
 [package.source]
 type = "legacy"
@@ -4206,4 +4206,4 @@ reference = "directive"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "f145e69949ed1dc00bb7cadadacd7834b89f27553b69096af8e449003610d56b"
+content-hash = "3b7db5b14191bf88b1a48bd7f9234bc14c3961440ed1d7a10f95e3be22233598"
