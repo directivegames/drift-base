@@ -1,18 +1,30 @@
-try:
-    from gevent import monkey
-    monkey.patch_all()
-    import sys
-    sys.stderr.write("patch_all() successful\n")
-except ImportError as e:
-    print(f"Error importing/patching for gevent in gunicorn.conf.py: {e}")
-    
-try:
-    from psycogreen.gevent import patch_psycopg
-    patch_psycopg()
-    import sys
-    sys.stderr.write("patch_psycopg() successful\n")
-except ImportError as e:
-    print(f"Error importing/patching psycopg for gevent in gunicorn.conf.py: {e}")
+def do_patch():
+    try:
+        from gevent import monkey
+        monkey.patch_all()
+        import sys
+        sys.stderr.write("patch_all() successful\n")
+    except ImportError as e:
+        print(f"Error importing/patching for gevent in gunicorn.conf.py: {e}")
+
+    try:
+        from psycogreen.gevent import patch_psycopg
+        patch_psycopg()
+        import sys
+        sys.stderr.write("patch_psycopg() successful\n")
+    except ImportError as e:
+        print(f"Error importing/patching psycopg for gevent in gunicorn.conf.py: {e}")
+
+    try:
+        from drift.contrib.datadog.patch import patch
+        patch()
+        import sys
+        sys.stderr.write("patch_shoutout() successful\n")
+    except ImportError as e:
+        print(f"Error importing/patching shoutout for ddtrace in gunicorn.conf.py: {e}")
+
+
+do_patch()
 
 
 wsgi_app = 'driftbase.flask.driftbaseapp:app'
