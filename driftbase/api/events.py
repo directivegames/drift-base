@@ -76,7 +76,8 @@ class EventsAPI(MethodView):
         if get_feature_switch('enable_eventlog_shoutout_forwarding') and is_service:
             events_to_shoutout = [event for event in events if not event.get('event_name', '').startswith('drift.')]
             if events_to_shoutout:
-                batch_size = get_tenant_config_value('eventlog', 'max_batch_size', 0)
+                batch_size = get_tenant_config_value('eventlog', 'max_batch_size',
+                                                     defaults=dict(eventlog=dict(max_batch_size=5)))
                 shoutout = current_app.extensions.get('shoutout').message
                 if not batch_size:
                     shoutout("eventlog:events", events=events_to_shoutout)
