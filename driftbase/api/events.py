@@ -79,9 +79,11 @@ class EventsAPI(MethodView):
                 batch_size = get_tenant_config_value('eventlog', 'max_batch_size', 0)
                 shoutout = current_app.extensions.get('shoutout').message
                 if not batch_size:
+                    eventlogger.info("shoutout", extra={"events": events_to_shoutout})
                     shoutout("eventlog:events", events=events_to_shoutout)
                 else:
                     for i in range(0, len(events_to_shoutout), batch_size):
+                        eventlogger.info("shoutout", extra={"events": events_to_shoutout[i: i + batch_size]})
                         shoutout("eventlog:events", events=events_to_shoutout[i: i + batch_size])
 
         if request.headers.get("Accept") == "application/json":
