@@ -1,3 +1,4 @@
+import datetime
 import http.client as http_client
 import time
 
@@ -353,6 +354,10 @@ class FlexMatchTest(_BaseFlexmatchTest):
             self.delete(ticket_url, expected_status_code=http_client.OK)
             self.post(self.endpoints["flexmatch_tickets"], data={"matchmaker": "unittest"},
                       expected_status_code=http_client.CONFLICT)
+    def test_cannot_start_matchmaking_if_banned(self):
+        self._initiate_matchmaking()
+        with patch.object(flexmatch, 'is_player_banned', return_value=True):
+            self.post(self.endpoints["flexmatch_tickets"], data={"matchmaker": "unittest"}, expected_status_code=http_client.FORBIDDEN)
 
     def test_delete_ticket_clears_cached_ticket_on_permanent_error(self):
         """ If a ticket isn't cancellable because it's completed, we should clear it ? """

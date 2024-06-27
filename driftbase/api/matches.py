@@ -886,6 +886,13 @@ class MatchPlayerAPI(MethodView):
             log.info(f"player {player_id} not found in match {match_id}. Aborting.")
             abort(http_client.NOT_FOUND)
 
+        if args["status"] == "banned" and match_player.status != "banned":
+            log.info("Player %s is banned from battle %s", player_id, match_id)
+            log_match_event(match_id, player_id,"gameserver.match.player_banned")
+            current_app.extensions["messagebus"].publish_message("match", {
+                "event": "match_player_banned", "match_id": match_id, "player_id": player_id
+            })
+
         for attr, value in args.items():
             setattr(match_player, attr, value)
         g.db.commit()

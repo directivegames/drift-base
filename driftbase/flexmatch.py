@@ -10,6 +10,8 @@ from drift.core.extensions.driftconfig import get_tenant_config_value
 from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.messages import post_message
+from driftbase.utils.redis_utils import JsonLock
+from datetime import datetime, timezone, timedelta
 
 from driftbase.resources.flexmatch import FLEXMATCH_DEFAULTS
 
@@ -242,15 +244,28 @@ def handle_client_event(queue_name, event_data):
             log.info(f"Client {client_id} unregistered. Attempting to cancel ticket {player_ticket['TicketId']}. Ticket dump: {player_ticket}.")
             cancel_active_ticket(player_id, player_ticket["TicketId"])
 
+
 def handle_match_event(queue_name, event_data):
-    if queue_name == "match" and event_data["event"] == "match_player_left":
-        player_id = event_data["player_id"]
-        with _LockedTicket(_make_player_ticket_key(player_id)) as ticket_lock:
-            player_ticket = ticket_lock.ticket
-            if player_ticket:
-                log.info(f"Player {player_id} left match {event_data['match_id']}. Clearing local ticket {player_ticket['TicketId']}. Ticket dump: {player_ticket}.")
-                player_ticket["Status"] = "MATCH_COMPLETE"
-                player_ticket["GameSessionConnectionInfo"] = None
+    event_name = event_data["event"]
+    if queue_name == "match" and (player_id := event_data["player_id"]):
+        if event_name == "match_player_left":
+            with _LockedTicket(_make_player_ticket_key(player_id)) as ticket_lock:
+                player_ticket = ticket_lock.ticket
+                if player_ticket:
+                    log.info(f"Player {player_id} left match {event_data['match_id']}. "
+                             f"Clearing local ticket {player_ticket['TicketId']}. Ticket dump: {player_ticket}.")
+                    player_ticket["Status"] = "MATCH_COMPLETE"
+                    player_ticket["GameSessionConnectionInfo"] = None
+        elif event_name == "match_player_banned":
+            with _BanInfo(_make_player_ban_key(player_id)) as ban_info:
+                ban_info.update_ban()
+
+def is_player_banned(player_id: int) -> bool:
+    return g.redis.conn.exists(_make_player_ban_key(player_id))
+
+def get_player_unban_date(player_id: int) -> datetime:
+    with _BanInfo(_make_player_ban_key(player_id)) as ban_info:
+        return ban_info.get_unban_date()
 
 
 def process_flexmatch_event(flexmatch_event):
@@ -376,6 +391,9 @@ def _get_player_ticket_key(player_id):
     if player_party_id is not None:
         return _make_party_ticket_key(player_party_id)
     return _make_player_ticket_key(player_id)
+
+def _make_player_ban_key(player_id):
+    return g.redis.make_key(f"player:{player_id}:flexmatch-ban:")
 
 def _get_player_party_members(player_id):
     """ Return the full list of players who share a party with 'player_id', including 'player_id'. If 'player_id' isn't
@@ -793,3 +811,30 @@ class TicketConflict(Exception):
         super().__init__(user_message, debug_info)
         self.msg = user_message
         self.debugs = debug_info
+
+class _BanInfo(JsonLock):
+    def __init__(self, key: str, expire_time_seconds: int = None):
+        self.num_bans = 0
+        self.last_ban_date = datetime.fromtimestamp(0, timezone.utc)
+        expire_time_seconds = expire_time_seconds or self._get_ban_times_defaults().get("expire_time_minutes", 60) * 60
+        super().__init__(key=key, ttl=expire_time_seconds)
+
+    def __enter__(self):
+        super().__enter__()
+        if isinstance(self.value, dict):
+            self.num_bans = self.value.get("num_bans", self.num_bans)
+            self.last_ban_date = self.value.get("last_ban_date", self.last_ban_date)
+        return self
+    def update_ban(self):
+        self.num_bans += 1
+        self.last_ban_date = datetime.now(timezone.utc)
+        self.value = {"num_bans": self.num_bans, "last_ban_date": self.last_ban_date}
+
+    def get_unban_date(self):
+        time_tiers = [minutes * 60 for minutes in self._get_ban_times_defaults().get("time_tiers_minutes", [0])]
+        ban_duration = time_tiers[max(0, min(self.num_bans - 1, len(time_tiers) - 1))] if self.num_bans > 0 else 0
+        return self.last_ban_date + timedelta(seconds=ban_duration)
+
+    @staticmethod
+    def _get_ban_times_defaults():
+        return _get_flexmatch_config_value("ban_times") or {}
