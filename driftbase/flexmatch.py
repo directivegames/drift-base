@@ -247,17 +247,16 @@ def handle_client_event(queue_name, event_data):
 
 def handle_match_event(queue_name, event_data):
     event_name = event_data["event"]
-    if queue_name == "match" and (player_id := event_data["player_id"]):
+    if queue_name == "match":
         if event_name == "match_player_left":
+            player_id = event_data["player_id"]
             with _LockedTicket(_make_player_ticket_key(player_id)) as ticket_lock:
                 player_ticket = ticket_lock.ticket
                 if player_ticket:
-                    log.info(f"Player {player_id} left match {event_data['match_id']}. "
-                             f"Clearing local ticket {player_ticket['TicketId']}. Ticket dump: {player_ticket}.")
-                    player_ticket["Status"] = "MATCH_COMPLETE"
-                    player_ticket["GameSessionConnectionInfo"] = None
+                    log.info(f"Player {player_id} left match {event_data['match_id']} with ticket {player_ticket['TicketId']}. ")
+                    player_ticket["Status"] = "COMPLETED"
         elif event_name == "match_player_banned":
-            with _BanInfo(_make_player_ban_key(player_id)) as ban_info:
+            with _BanInfo(_make_player_ban_key(event_data["player_id"])) as ban_info:
                 ban_info.update_ban()
 
 def is_player_banned(player_id: int) -> bool:
