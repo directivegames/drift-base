@@ -22,6 +22,7 @@ eth-account = "^0.11"
 sqlalchemy = "<2"
 flask-marshmallow = "~0.14.0"
 siwe = "^4.1.0"
+prometheus-client = "^0.20.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "~8.0"
