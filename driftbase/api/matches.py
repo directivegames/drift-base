@@ -891,7 +891,7 @@ class MatchPlayerAPI(MethodView):
             log.info(f"Player {player_id} is banned from battle {match_id} ({match_type})")
             log_match_event(match_id, player_id,"gameserver.match.player_banned")
             current_app.extensions["messagebus"].publish_message("match", {
-                "event": "match_player_banned", "match_id": match_id, "match_type": match_type,"player_id": player_id})
+                "event": "match_player_banned", "match_id": match_id, "match_type": match_type, "player_id": player_id})
 
         for attr, value in args.items():
             setattr(match_player, attr, value)

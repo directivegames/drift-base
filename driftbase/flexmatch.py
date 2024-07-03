@@ -258,7 +258,7 @@ def handle_match_event(queue_name, event_data):
                     player_ticket["GameSessionConnectionInfo"] = None
         elif event_name == "match_player_banned":
             with BanInfo(player_id=event_data["player_id"], match_type=event_data["match_type"]) as ban_info:
-                ban_info.update_ban()
+                ban_info.update_ban(event_data["match_id"])
 
 def get_player_ban_info(player_id: int, matchmaker: str) -> dict | None:
     with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
@@ -838,10 +838,13 @@ class BanInfo(object):
 
     def exists(self) -> bool:
         return self._value and (datetime.now(timezone.utc) < self.last_ban_date + timedelta(seconds=self._ttl))
-    def update_ban(self):
+    def update_ban(self, match_id):
         self._value = self._value or {}
-        self._value |= {"num_bans": self.num_bans + 1, "last_ban_date": datetime.now(timezone.utc)}
-        self._modified = True
+        ban_match_ids = self._value.get("ban_match_ids", [])
+        if match_id not in ban_match_ids:
+            ban_match_ids.append(match_id)
+            self._value |= {"num_bans": self.num_bans + 1, "last_ban_date": datetime.now(timezone.utc), "ban_match_ids": ban_match_ids}
+            self._modified = True
 
     def get_unban_date(self):
         time_tiers = [seconds for seconds in self.config.get("ban_time_seconds", [0])]

@@ -386,22 +386,27 @@ class FlexMatchTest(_BaseFlexmatchTest):
             stack.enter_context(patch.object(flexmatch, "_get_flexmatch_config_value", lambda config_key: config[config_key]))
             stack.enter_context(patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient))
 
-            def _on_match_ban_event(match_type):
-                event_data = {"event": "match_player_banned", "player_id": self.player_id, "match_type": match_type}
+            def _on_match_ban_event(match_type, match_id):
+                event_data = {"event": "match_player_banned", "match_id": match_id, "match_type": match_type, "player_id": self.player_id}
                 flexmatch.handle_match_event("match", event_data)
 
             endpoint = self.endpoints["flexmatch_tickets"]
 
             # Cannot start if matchmaker is banned.
-            _on_match_ban_event("EMatchType::Ranked")
+            _on_match_ban_event("EMatchType::Ranked", 1)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNotNone(ban_info)
             self.assertEqual(ban_info["num_bans"], 1)
             self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=get_config_ban_time_seconds(ban_info["num_bans"] - 1)))
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
 
+            # Make sure each player is only banned once in a match.
+            _on_match_ban_event("EMatchType::Ranked", 1)
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertEqual(ban_info["num_bans"], 1)
+
             # Escalating Ban time.
-            _on_match_ban_event("EMatchType::Ranked")
+            _on_match_ban_event("EMatchType::Ranked", 2)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNotNone(ban_info)
             self.assertEqual(ban_info["num_bans"], 2)
@@ -415,7 +420,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.CREATED)
 
             # Only ban relevant matchmakers.
-            _on_match_ban_event("EMatchType::Ranked")
+            _on_match_ban_event("EMatchType::Ranked", 3)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNotNone(ban_info)
             self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)
