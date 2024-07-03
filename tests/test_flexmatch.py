@@ -360,7 +360,20 @@ class FlexMatchTest(_BaseFlexmatchTest):
     def test_matchmaking_ban(self):
         self.make_player()
         with ExitStack() as stack:
-            store = {}
+            class MockBanInfo(flexmatch.BanInfo):
+                _store = {}
+                def __enter__(self):
+                    self._value = self._store.get(self._key)
+                    return self
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    if self._modified is True and exc_type is None:
+                        if self._key in self._store:
+                            del self._store[self._key]
+                        if self._value is not None:
+                            self._store[self._key] = self._value.copy()
+                def get_redis(self):
+                    return None
+
             config = FLEXMATCH_DEFAULTS | {"matchmaker_ban_times":
                 {"DG-Ranked": {
                     "match_types": ["EMatchType::Ranked"],
@@ -369,7 +382,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
             get_config_ban_time_seconds = lambda i: config["matchmaker_ban_times"]["DG-Ranked"]["ban_time_seconds"][i]
             get_config_expiry_seconds = lambda: config["matchmaker_ban_times"]["DG-Ranked"]["expiry_seconds"]
 
-            stack.enter_context(patch.object(flexmatch.BanInfo, "test_store", store))
+            stack.enter_context(patch.object(flexmatch, "BanInfo", MockBanInfo))
             stack.enter_context(patch.object(flexmatch, "_get_flexmatch_config_value", lambda config_key: config[config_key]))
             stack.enter_context(patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient))
 

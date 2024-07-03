@@ -809,43 +809,32 @@ class TicketConflict(Exception):
         self.debugs = debug_info
 
 class BanInfo(object):
-    test_store = None
     def __init__(self, player_id: int, matchmaker: str | None = None, match_type: str | None = None, ttl: int | None = None):
         self._modified = False
         self._value = None
         self.matchmaker, self.config = self.find_config(matchmaker, match_type)
-        self._test_store = BanInfo.test_store
         key = f"player:{player_id}:flexmatch-ban:{self.matchmaker}:"
-        self._key = g.redis.make_key(key) if self._test_store is None else key
-        self._lock = g.redis.conn.lock(self._key + "LOCK", timeout=30) if self._test_store is None else None
+        self._redis = self.get_redis()
+        self._key = g.redis.make_key(key) if self._redis else key
+        self._lock = g.redis.conn.lock(self._key + "LOCK", timeout=30) if self._redis else None
         self._ttl = ttl or self.config.get("expiry_seconds", 60 * 60)
 
     def __enter__(self):
-        if self._lock:
-            self._lock.acquire(blocking=True)
-            value = g.redis.conn.get(self._key)
-            if value is not None:
-                self._value = json.loads(value)
-        elif isinstance(self._test_store, dict):
-            self._value = self._test_store.get(self._key)
+        self._lock.acquire(blocking=True)
+        value = g.redis.conn.get(self._key)
+        if value is not None:
+            self._value = json.loads(value)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._lock:
-            if self._lock.owned():
-                with g.redis.conn.pipeline() as pipe:
-                    if self._modified is True and exc_type is None:
-                        pipe.delete(self._key)
-                        if self._value is not None:
-                            pipe.set(self._key, json.dumps(self._value, default=lambda obj: obj.isoformat()), ex=self._ttl)
-                    pipe.execute()
-                self._lock.release()
-        elif isinstance(self._test_store, dict):
-            if self._modified is True and exc_type is None:
-                if self._key in self._test_store:
-                    del self._test_store[self._key]
-                if self._value is not None:
-                    self._test_store[self._key] = self._value.copy()
+        if self._lock.owned():
+            with g.redis.conn.pipeline() as pipe:
+                if self._modified is True and exc_type is None:
+                    pipe.delete(self._key)
+                    if self._value is not None:
+                        pipe.set(self._key, json.dumps(self._value, default=lambda obj: obj.isoformat()), ex=self._ttl)
+                pipe.execute()
+            self._lock.release()
 
     def exists(self) -> bool:
         return self._value and (datetime.now(timezone.utc) < self.last_ban_date + timedelta(seconds=self._ttl))
@@ -873,3 +862,6 @@ class BanInfo(object):
         if matchmaker:
             return matchmaker, config.get(matchmaker, {})
         return next(((k, v) for k, v in config.items() if match_type in v["match_types"]), ("", {}))
+
+    def get_redis(self):
+        return g.redis
