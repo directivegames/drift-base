@@ -11,7 +11,7 @@ from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.messages import post_message
 from driftbase.utils.redis_utils import JsonLock
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, date, timezone, timedelta
 
 from driftbase.resources.flexmatch import FLEXMATCH_DEFAULTS
 
@@ -257,16 +257,15 @@ def handle_match_event(queue_name, event_data):
                     player_ticket["Status"] = "MATCH_COMPLETE"
                     player_ticket["GameSessionConnectionInfo"] = None
         elif event_name == "match_player_banned":
-            with _BanInfo(_make_player_ban_key(event_data["player_id"])) as ban_info:
+            with BanInfo(player_id=event_data["player_id"], match_type=event_data["match_type"]) as ban_info:
                 ban_info.update_ban()
 
-def is_player_banned(player_id: int) -> bool:
-    return g.redis.conn.exists(_make_player_ban_key(player_id))
-
-def get_player_unban_date(player_id: int) -> datetime:
-    with _BanInfo(_make_player_ban_key(player_id)) as ban_info:
-        return ban_info.get_unban_date()
-
+def get_player_ban_info(player_id: int, matchmaker: str) -> dict | None:
+    with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
+        if ban_info.exists():
+            return {"unban_date": ban_info.get_unban_date(),
+                    "num_bans": ban_info.num_bans,
+                    "last_ban_date": ban_info.last_ban_date}
 
 def process_flexmatch_event(flexmatch_event):
     if not check_event_tenant_account(flexmatch_event):
@@ -391,9 +390,6 @@ def _get_player_ticket_key(player_id):
     if player_party_id is not None:
         return _make_party_ticket_key(player_party_id)
     return _make_player_ticket_key(player_id)
-
-def _make_player_ban_key(player_id):
-    return g.redis.make_key(f"player:{player_id}:flexmatch-ban:")
 
 def _get_player_party_members(player_id):
     """ Return the full list of players who share a party with 'player_id', including 'player_id'. If 'player_id' isn't
@@ -812,29 +808,68 @@ class TicketConflict(Exception):
         self.msg = user_message
         self.debugs = debug_info
 
-class _BanInfo(JsonLock):
-    def __init__(self, key: str, expire_time_seconds: int = None):
-        self.num_bans = 0
-        self.last_ban_date = datetime.fromtimestamp(0, timezone.utc)
-        expire_time_seconds = expire_time_seconds or self._get_ban_times_defaults().get("expire_time_minutes", 60) * 60
-        super().__init__(key=key, ttl=expire_time_seconds)
+class BanInfo(object):
+    test_store = None
+    def __init__(self, player_id: int, matchmaker: str | None = None, match_type: str | None = None, ttl: int | None = None):
+        self._modified = False
+        self._value = None
+        self.matchmaker, self.config = self.find_config(matchmaker, match_type)
+        self._test_store = BanInfo.test_store
+        key = f"player:{player_id}:flexmatch-ban:{self.matchmaker}:"
+        self._key = g.redis.make_key(key) if self._test_store is None else key
+        self._lock = g.redis.conn.lock(self._key + "LOCK", timeout=30) if self._test_store is None else None
+        self._ttl = ttl or self.config.get("expiry_seconds", 60 * 60)
 
     def __enter__(self):
-        super().__enter__()
-        if isinstance(self.value, dict):
-            self.num_bans = self.value.get("num_bans", self.num_bans)
-            self.last_ban_date = self.value.get("last_ban_date", self.last_ban_date)
+        if self._lock:
+            self._lock.acquire(blocking=True)
+            value = g.redis.conn.get(self._key)
+            if value is not None:
+                self._value = json.loads(value)
+        elif isinstance(self._test_store, dict):
+            self._value = self._test_store.get(self._key)
         return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._lock:
+            if self._lock.owned():
+                with g.redis.conn.pipeline() as pipe:
+                    if self._modified is True and exc_type is None:
+                        pipe.delete(self._key)
+                        if self._value is not None:
+                            pipe.set(self._key, json.dumps(self._value, default=lambda obj: obj.isoformat()), ex=self._ttl)
+                    pipe.execute()
+                self._lock.release()
+        elif isinstance(self._test_store, dict):
+            if self._modified is True and exc_type is None:
+                if self._key in self._test_store:
+                    del self._test_store[self._key]
+                if self._value is not None:
+                    self._test_store[self._key] = self._value.copy()
+
+    def exists(self) -> bool:
+        return self._value and (datetime.now(timezone.utc) < self.last_ban_date + timedelta(seconds=self._ttl))
     def update_ban(self):
-        self.num_bans += 1
-        self.last_ban_date = datetime.now(timezone.utc)
-        self.value = {"num_bans": self.num_bans, "last_ban_date": self.last_ban_date}
+        self._value = self._value or {}
+        self._value |= {"num_bans": self.num_bans + 1, "last_ban_date": datetime.now(timezone.utc)}
+        self._modified = True
 
     def get_unban_date(self):
-        time_tiers = [minutes * 60 for minutes in self._get_ban_times_defaults().get("time_tiers_minutes", [0])]
+        time_tiers = [seconds for seconds in self.config.get("ban_time_seconds", [0])]
         ban_duration = time_tiers[max(0, min(self.num_bans - 1, len(time_tiers) - 1))] if self.num_bans > 0 else 0
         return self.last_ban_date + timedelta(seconds=ban_duration)
 
+    @property
+    def num_bans(self):
+        return self._value.get("num_bans", 0)
+
+    @property
+    def last_ban_date(self):
+        return self._value.get("last_ban_date", datetime.now(timezone.utc))
+
     @staticmethod
-    def _get_ban_times_defaults():
-        return _get_flexmatch_config_value("ban_times") or {}
+    def find_config(matchmaker, match_type):
+        config = _get_flexmatch_config_value("matchmaker_ban_times")
+        if matchmaker:
+            return matchmaker, config.get(matchmaker, {})
+        return next(((k, v) for k, v in config.items() if match_type in v["match_types"]), ("", {}))

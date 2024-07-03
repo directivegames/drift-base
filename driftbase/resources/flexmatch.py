@@ -11,9 +11,17 @@ FLEXMATCH_DEFAULTS = {
     "valid_regions": ["eu-west-1"],
     "max_rejoin_time_seconds": 90,
     "backfill_ticket_pattern": "^BackFill--.*",  # This is highly tenant specific; Perseus/TMA server issues backfill tickets with this prefix, but there's no rule here"""
-    "ban_times": {
-        "time_tiers_minutes": [6, 15, 30, 60, 12 * 60],
-        "expire_time_minutes": 24 * 60
+    "matchmaker_ban_times": {
+        "DG-Ranked": {
+            "match_types": ["EMatchType::Ranked"],
+            "ban_time_seconds": [
+                6 * 60,
+                15 * 60,
+                30 * 60,
+                60 * 60,
+                12 * 60 * 60],
+            "expiry_seconds": 24 * 60 * 60
+        }
     }
 }
 
