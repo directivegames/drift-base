@@ -33,6 +33,7 @@
         "driftbase.api.lobbies",
         "driftbase.api.match_placements",
         "driftbase.api.sandbox",
+        "driftbase.api.client_config",
 
         "drift.core.apps.provision",
         "drift.core.apps.healthcheck",

@@ -31,7 +31,7 @@ class ClientConfigResponse(ma.Schema):
 
 class ClientConfigsResponse(ma.Schema):
     client_configs = ma.fields.Nested(
-        ClientConfigResponse, many=True, metadata=dict(description='Function controls'))
+        ClientConfigResponse, many=True, metadata=dict(description='Client configs'))
 
 
 @bp.route("", endpoint="configs")
@@ -41,8 +41,7 @@ class ClientConfigAPI(MethodView):
     def get(self):
         # TODO: This might need to be changed to just check one specific config key, depending on if we want to hide
         # the other switches for whatever reason
-        log.info(f"Returning function controls of tenant {get_tenant_name()}")
-
+        log.info(f"Returning client configs of tenant {get_tenant_name()}")
         tenant_client_config = _get_client_config()
         output = []
         for config_key, config_val in tenant_client_config.items():
