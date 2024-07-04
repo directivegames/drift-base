@@ -17,6 +17,8 @@ AUTH_MODULES = {
     'discord': 'driftbase.auth.discord',
     'twitter': 'driftbase.auth.twitter',
     'steamopenid': 'driftbase.auth.steamopenid',
+    'google': 'driftbase.auth.google',
+    'facebook': 'driftbase.auth.facebook',
 }
 
 LOCAL_AUTH = [
