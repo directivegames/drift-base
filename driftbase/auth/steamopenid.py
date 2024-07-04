@@ -27,7 +27,7 @@ def authenticate(auth_info):
     automatic_account_creation = auth_info.get("automatic_account_creation", True)
     identity_id = validate_steam_openid()
     username = "steam:" + identity_id
-    return base_authenticate(username, "", True or automatic_account_creation)
+    return base_authenticate(username, "", automatic_account_creation)
 
 
 def validate_steam_openid():
