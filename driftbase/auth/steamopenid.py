@@ -39,9 +39,11 @@ def validate_steam_openid():
     
     # Get the authentication config
     config = get_provider_config(provider_name)
+    '''
     config = config or {
         'api_key': os.environ.get('STEAM_API_KEY')
-    }    
+    }
+    '''    
     if not config:
         abort(http_client.SERVICE_UNAVAILABLE, description=f"{provider_name} authentication not configured for current tenant")        
     
