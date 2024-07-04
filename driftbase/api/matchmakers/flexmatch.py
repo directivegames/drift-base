@@ -130,8 +130,17 @@ class FlexMatchTicketsAPI(MethodView):
         Returns a ticket.
         """
         player_id = current_user.get("player_id")
+        matchmaker = args.get("matchmaker")
+
+        # Cannot start matchmaking if player is banned.
+        info = flexmatch.get_player_ban_info(player_id, matchmaker)
+        if info:
+            unban_date = info["unban_date"]
+            log.info(f"Cannot start matchmaking for banned player {player_id}. Expires at: {unban_date}")
+            return abort(http_client.FORBIDDEN, description=f"Matchmaking ban expires at: {unban_date.isoformat()}")
+
         try:
-            ticket = flexmatch.upsert_flexmatch_ticket(player_id, args.get("matchmaker"), args.get("extras", {}))
+            ticket = flexmatch.upsert_flexmatch_ticket(player_id, matchmaker, args.get("extras", {}))
             return {
                 "ticket_url": url_for("flexmatch.ticket", ticket_id=ticket["TicketId"], _external=True),
                 "ticket_id": ticket["TicketId"],

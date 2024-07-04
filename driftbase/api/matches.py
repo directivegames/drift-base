@@ -586,7 +586,7 @@ class MatchAPI(MethodView):
 
                 if new_status == "started":
                     match.start_date = utcnow()
-                elif new_status == "completed":
+                elif new_status in ("completed", "ended"):
                     match.end_date = utcnow()
                     # ! TODO: Set leave_date on matchplayers who are still in the match
                 match.status_date = utcnow()
@@ -885,6 +885,13 @@ class MatchPlayerAPI(MethodView):
         if not match_player:
             log.info(f"player {player_id} not found in match {match_id}. Aborting.")
             abort(http_client.NOT_FOUND)
+
+        if args.get("status") == "banned" and match_player.status != "banned":
+            match_type = args.get("details", {}).get("match_type")
+            log.info(f"Player {player_id} is banned from battle {match_id} ({match_type})")
+            log_match_event(match_id, player_id,"gameserver.match.player_banned")
+            current_app.extensions["messagebus"].publish_message("match", {
+                "event": "match_player_banned", "match_id": match_id, "match_type": match_type, "player_id": player_id})
 
         for attr, value in args.items():
             setattr(match_player, attr, value)
