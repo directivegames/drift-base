@@ -16,6 +16,7 @@ AUTH_MODULES = {
     'cognito': 'driftbase.auth.cognito',
     'discord': 'driftbase.auth.discord',
     'twitter': 'driftbase.auth.twitter',
+    'steamopenid': 'driftbase.auth.steamopenid',
 }
 
 LOCAL_AUTH = [
