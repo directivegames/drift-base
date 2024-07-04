@@ -43,10 +43,12 @@ def validate_twitter_code():
     
     # Get the authentication config
     config = get_provider_config(provider_name)
+    '''
     config = config or {
         'client_id': os.environ.get('TWITTER_CLIENT_ID'),
         'client_secret': os.environ.get('TWITTER_CLIENT_SECRET')
     }    
+    '''
     if not config:
         abort(http_client.SERVICE_UNAVAILABLE, description=f"{provider_name} authentication not configured for current tenant")        
     

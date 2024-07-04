@@ -82,6 +82,7 @@ def validate_discord_code():
         abort_unauthorized(str(e))
     if r.status_code != 200:
         abort_unauthorized(f'Discord oauth2 API status code: {r.status_code}')
+    
     tokens = r.json()
     access_token = tokens['access_token']
     
