@@ -8,10 +8,10 @@ class ClientConfigTest(DriftBaseTestCase):
     Tests for the /client_configs endpoint
     """
 
-    @patch('driftbase.api.client_config._get_client_config')
-    def test_client_config_get_successful_response(self, mock_get_client_config):
-        # Mock the return value of _get_client_config to simulate the configurations
-        mock_get_client_config.return_value = {
+    @patch('driftbase.api.client_configs._get_client_configs')
+    def test_client_config_get_successful_response(self, mock_get_client_configs):
+        # Mock the return value of _get_client_configs to simulate the configurations
+        mock_get_client_configs.return_value = {
             "client_config_1": "URL",
             "client_config_2": "1",
             "client_config_3": "",

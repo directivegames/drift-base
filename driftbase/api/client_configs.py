@@ -39,10 +39,8 @@ class ClientConfigAPI(MethodView):
 
     @bp.response(http_client.OK, ClientConfigsResponse)
     def get(self):
-        # TODO: This might need to be changed to just check one specific config key, depending on if we want to hide
-        # the other switches for whatever reason
         log.info(f"Returning client configs of tenant {get_tenant_name()}")
-        tenant_client_config = _get_client_config()
+        tenant_client_config = _get_client_configs()
         output = []
         for config_key, config_val in tenant_client_config.items():
             output_entry = {
@@ -62,5 +60,5 @@ def endpoint_info(*args):
     return ret
 
 
-def _get_client_config():
+def _get_client_configs():
     return g.conf.tenant.get("client_configs", CLIENT_CONFIGS_DEFAULTS)
