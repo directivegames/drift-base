@@ -11,11 +11,10 @@ from collections import defaultdict
 
 from flask import g
 
-
 CLIENT_CONFIGS_DEFAULTS = defaultdict(str)  # str default constructor is empty string
 
 log = logging.getLogger(__name__)
-bp = Blueprint("client_config", __name__, url_prefix="/client_config")
+bp = Blueprint("client_configs", __name__, url_prefix="/client_configs")
 endpoints = Endpoints()
 
 
@@ -36,6 +35,7 @@ class ClientConfigsResponse(ma.Schema):
 
 @bp.route("", endpoint="configs")
 class ClientConfigAPI(MethodView):
+    no_jwt_check = ["GET"]
 
     @bp.response(http_client.OK, ClientConfigsResponse)
     def get(self):
@@ -57,7 +57,7 @@ class ClientConfigAPI(MethodView):
 @endpoints.register
 def endpoint_info(*args):
     ret = {
-        "client_config": url_for("client_config.configs", _external=True),
+        "client_configs": url_for("client_configs.configs", _external=True),
     }
     return ret
 
