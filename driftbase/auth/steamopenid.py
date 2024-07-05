@@ -15,21 +15,22 @@ provider_name = 'steamopenid'
 
 
 def authenticate(auth_info):
+    # expected auth_info
     '''
-    Expect
     {
         'provider': 'steamopenid',
         'provider_details': <All the request params from the steam OpenID callback>
     }
     '''
     assert auth_info['provider'] == provider_name
-    automatic_account_creation = auth_info.get("automatic_account_creation", True)
-    identity_id = validate_steam_openid(auth_info['provider_details'])
-    username = "steam:" + identity_id
-    return base_authenticate(username, "", automatic_account_creation)
+    identity = get_steam_openid_identity(auth_info['provider_details'])
+    identity_id = identity['id']
+    # Do not use 'provider_name' in the username, needs to be consistent with steam.py
+    username = f'steam:{identity_id}'
+    return base_authenticate(username, '', automatic_account_creation=auth_info.get('automatic_account_creation', True))
 
 
-def validate_steam_openid(provider_details):
+def get_steam_openid_identity(provider_details):
     '''
     validate steam OpenID and return the user id
     '''
@@ -71,4 +72,4 @@ def validate_steam_openid(provider_details):
         abort_unauthorized(f'Steam OpenID API status code: {r.status_code}')
     
     log.info(f"Steam player authenticated: {steam_id}")
-    return steam_id
+    return {'id': steam_id}
