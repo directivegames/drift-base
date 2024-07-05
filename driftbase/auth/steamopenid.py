@@ -2,7 +2,6 @@ import logging
 import os
 import requests
 import re
-from flask import request
 from drift.blueprint import abort
 import http.client as http_client
 from werkzeug.exceptions import Unauthorized
@@ -25,17 +24,15 @@ def authenticate(auth_info):
     '''
     assert auth_info['provider'] == provider_name
     automatic_account_creation = auth_info.get("automatic_account_creation", True)
-    identity_id = validate_steam_openid()
+    identity_id = validate_steam_openid(auth_info['provider_details'])
     username = "steam:" + identity_id
     return base_authenticate(username, "", automatic_account_creation)
 
 
-def validate_steam_openid():
+def validate_steam_openid(provider_details):
     '''
     validate steam OpenID and return the user id
     '''
-    ob = request.get_json()
-    provider_details = ob['provider_details']
     
     # Get the authentication config
     config = get_provider_config(provider_name)
