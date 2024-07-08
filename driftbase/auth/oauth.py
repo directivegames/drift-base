@@ -27,8 +27,8 @@ class BaseOAuthValidator:
     
 
     def _abort_unauthorized(self, error):
-            description = f'{self.name} code validation failed. {error}'
-            raise Unauthorized(description=description)
+        description = f'{self.name} code validation failed. {error}'
+        raise Unauthorized(description=description)
     
 
     def get_oauth_identity(self, provider_details) -> dict:
