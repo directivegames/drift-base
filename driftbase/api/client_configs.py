@@ -23,14 +23,9 @@ def drift_init_extension(app, **kwargs):
     endpoints.init_app(app)
 
 
-class ClientConfigResponse(ma.Schema):
-    config_name = ma.fields.Str(required=True)
-    value = ma.fields.Str(required=True, default="")
-
-
 class ClientConfigsResponse(ma.Schema):
-    client_configs = ma.fields.Nested(
-        ClientConfigResponse, many=True, metadata=dict(description='Client configs'))
+    client_configs = ma.fields.Dict(keys=ma.fields.Str(), values=ma.fields.Str(),
+                                    metadata=dict(description='Client configs'))
 
 
 @bp.route("", endpoint="configs")
@@ -41,15 +36,7 @@ class ClientConfigAPI(MethodView):
     def get(self):
         log.info(f"Returning client configs of tenant {get_tenant_name()}")
         tenant_client_config = _get_client_configs()
-        output = []
-        for config_key, config_val in tenant_client_config.items():
-            output_entry = {
-                "config_name": config_key,
-                "value": config_val
-            }
-            output.append(output_entry)
-
-        return {"client_configs": output}
+        return {"client_configs": tenant_client_config}
 
 
 @endpoints.register

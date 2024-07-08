@@ -22,12 +22,13 @@ class ClientConfigTest(DriftBaseTestCase):
 
         self.assertEqual(response.status_code, http_client.OK)
         data = response.json()
+
         expected_output = {
-            "client_configs": [
-                {"config_name": "client_config_1", "value": "URL"},
-                {"config_name": "client_config_2", "value": "1"},
-                {"config_name": "client_config_3", "value": ""},
-                {"config_name": "client_config_4", "value": "URL"}
-            ]
+            "client_configs": {
+                "client_config_1": "URL",
+                "client_config_2": "1",
+                "client_config_3": "",
+                "client_config_4": "URL"
+            }
         }
         self.assertEqual(data, expected_output)
