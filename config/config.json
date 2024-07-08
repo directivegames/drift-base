@@ -41,7 +41,8 @@
     ],
     "extensions": [
         "driftbase.clientsession",
-        "driftbase.analytics"
+        "driftbase.analytics",
+        "driftbase.extensions.metrics"
     ],
     "resources": [
         "drift.core.resources.postgres",
