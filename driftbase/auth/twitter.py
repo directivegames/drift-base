@@ -5,12 +5,16 @@ import base64
 from .authenticate import authenticate as base_authenticate
 from .oauth import BaseOAuthValidator
 
+provider_name = 'twitter'
 
 class TwitterValidator(BaseOAuthValidator):
-    def _get_details_fields(self) -> list[str]:
-        return BaseOAuthValidator._get_details_fields(self) + ['code_verifier']
-    
-    def _call_oauth(self, client_id: str, client_secret: str, provider_details: dict) -> requests.Response:
+    def __init__(self):
+        super().__init__(name=provider_name, details_fields=['code', 'code_verifier', 'redirect_uri'])
+
+
+    def _call_oauth(self, provider_details: dict) -> requests.Response:
+        client_id = self.config['client_id']
+        client_secret = self.config['client_secret']
         data = {
             'client_id': client_id,
             'grant_type': 'authorization_code',
@@ -23,15 +27,16 @@ class TwitterValidator(BaseOAuthValidator):
             'Authorization': f'Basic {base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()}'
         }
         return requests.post('https://api.twitter.com/2/oauth2/token', data=data, headers=headers)
-            
-    def _get_identity(self, access_token: str) -> requests.Response:
+
+
+    def _get_identity(self, response: requests.Response, provider_details: dict) -> requests.Response | dict:
+        access_token = response.json()['access_token']
         return requests.get('https://api.twitter.com/2/users/me', headers={
             'Authorization': f'Bearer {access_token}'
         })
 
 
-def authenticate(auth_info):
-    provider_name = 'twitter'
+def authenticate(auth_info):    
     # expected auth_info
     '''
     {
@@ -44,7 +49,7 @@ def authenticate(auth_info):
     }
     '''
     assert auth_info['provider'] == provider_name
-    validator = TwitterValidator(provider_name)
+    validator = TwitterValidator()
     '''
     validator.config = validator.config or {
         'client_id': os.environ.get('TWITTER_CLIENT_ID'),

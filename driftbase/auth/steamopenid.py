@@ -2,16 +2,30 @@ import logging
 import os
 import requests
 import re
-from drift.blueprint import abort
-import http.client as http_client
-from werkzeug.exceptions import Unauthorized
 
-from driftbase.auth import get_provider_config
 from .authenticate import authenticate as base_authenticate
+from .oauth import BaseOAuthValidator
 
-log = logging.getLogger(__name__)
 
 provider_name = 'steamopenid'
+
+class SteamOpenIDValidator(BaseOAuthValidator):
+    def __init__(self):
+        super().__init__(name=provider_name, config_fields=['api_key'], details_fields=['openid.claimed_id', 'openid.assoc_handle', 'openid.signed', 'openid.sig', 'openid.ns'])
+    
+
+    def _call_oauth(self, provider_details: dict) -> requests.Response:
+        data = provider_details
+        data['openid.mode'] = 'check_authentication'
+        return requests.post('https://steamcommunity.com/openid/login', data=data)
+
+
+    def _get_identity(self, response: requests.Response, provider_details: dict) -> requests.Response | dict:
+        if 'is_valid:true' in response.text:
+            steam_id = re.search(r'\d+$', provider_details['openid.claimed_id']).group(0)
+            return {'id': steam_id}
+        else:
+            self._abort_unauthorized(f'OAuth response is not valid: {response.text}')
 
 
 def authenticate(auth_info):
@@ -23,53 +37,14 @@ def authenticate(auth_info):
     }
     '''
     assert auth_info['provider'] == provider_name
-    identity = get_steam_openid_identity(auth_info['provider_details'])
+    validator = SteamOpenIDValidator()
+    '''    
+    validator.config = validator.config or {
+        'api_key': os.environ.get('STEAM_API_KEY')
+    }
+    '''
+    identity = validator.get_oauth_identity(auth_info['provider_details'])
     identity_id = identity['id']
     # Do not use 'provider_name' in the username, needs to be consistent with steam.py
     username = f'steam:{identity_id}'
     return base_authenticate(username, '', automatic_account_creation=auth_info.get('automatic_account_creation', True))
-
-
-def get_steam_openid_identity(provider_details):
-    '''
-    validate steam OpenID and return the user id
-    '''
-    
-    # Get the authentication config
-    config = get_provider_config(provider_name)
-    '''
-    config = config or {
-        'api_key': os.environ.get('STEAM_API_KEY')
-    }
-    '''    
-    if not config:
-        abort(http_client.SERVICE_UNAVAILABLE, description=f"{provider_name} authentication not configured for current tenant")        
-    
-    api_key = config.get('api_key')
-    if not api_key:
-        log.error('Steam OpenID cannot be validated, client_id or client_secret not configured')
-        abort(http_client.SERVICE_UNAVAILABLE, description=f"{provider_name} authentication not configured correctly")
-    
-    data = provider_details
-    data['openid.mode'] = 'check_authentication'
-    for f in ['openid.claimed_id', 'openid.assoc_handle', 'openid.signed', 'openid.sig', 'openid.ns']:
-        if f not in data:
-            abort(http_client.BAD_REQUEST, description="Invalid provider details")    
-    def abort_unauthorized(error):
-        description = f'Steam OpenID validation failed. {error}'
-        raise Unauthorized(description=description)
-
-    # call oauth2 to get the access token
-    try:
-        r = requests.post('https://steamcommunity.com/openid/login', data=data)
-        if 'is_valid:true' in r.text:
-            steam_id = re.search(r'\d+$', provider_details['openid.claimed_id']).group(0)
-        else:
-            abort_unauthorized()
-    except requests.exceptions.RequestException as e:
-        abort_unauthorized(str(e))
-    if r.status_code != 200:
-        abort_unauthorized(f'Steam OpenID API status code: {r.status_code}')
-    
-    log.info(f"Steam player authenticated: {steam_id}")
-    return {'id': steam_id}

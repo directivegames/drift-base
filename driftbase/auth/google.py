@@ -4,12 +4,17 @@ import requests
 from .authenticate import authenticate as base_authenticate
 from .oauth import BaseOAuthValidator
 
+provider_name = 'google'
 
 class GoogleValidator(BaseOAuthValidator):
-    def _call_oauth(self, client_id: str, client_secret: str, provider_details: dict) -> requests.Response:
+    def __init__(self):
+        super().__init__(name=provider_name)
+
+
+    def _call_oauth(self, provider_details: dict) -> requests.Response:
         data = {
-            'client_id': client_id,
-            'client_secret': client_secret,
+            'client_id': self.config['client_id'],
+            'client_secret': self.config['client_secret'],
             'code': provider_details['code'],
             'redirect_uri': provider_details['redirect_uri'],
             'grant_type': 'authorization_code'
@@ -17,15 +22,16 @@ class GoogleValidator(BaseOAuthValidator):
         return requests.post('https://oauth2.googleapis.com/token', data=data, headers={
             'Content-Type': 'application/x-www-form-urlencoded'
         })
-            
-    def _get_identity(self, access_token: str) -> requests.Response:
+
+
+    def _get_identity(self, response: requests.Response, provider_details: dict) -> requests.Response | dict:
+        access_token = response.json()['access_token']
         return requests.get('https://www.googleapis.com/oauth2/v1/userinfo', headers={
             'Authorization': f'Bearer {access_token}'
         })
 
 
-def authenticate(auth_info):
-    provider_name = 'google'
+def authenticate(auth_info):    
     # expected auth_info
     '''    
     {
@@ -37,7 +43,7 @@ def authenticate(auth_info):
     }
     '''
     assert auth_info['provider'] == provider_name
-    validator = GoogleValidator(provider_name)
+    validator = GoogleValidator()
     '''
     validator.config = validator.config or {
         'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
