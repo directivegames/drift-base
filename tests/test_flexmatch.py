@@ -1,11 +1,14 @@
 import http.client as http_client
 import time
+from contextlib import ExitStack
 
 import mock
 
 from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
 from driftbase import flexmatch
+from driftbase.resources.flexmatch import FLEXMATCH_DEFAULTS
+from datetime import datetime, date, timezone, timedelta
 import uuid
 import json
 
@@ -353,6 +356,76 @@ class FlexMatchTest(_BaseFlexmatchTest):
             self.delete(ticket_url, expected_status_code=http_client.OK)
             self.post(self.endpoints["flexmatch_tickets"], data={"matchmaker": "unittest"},
                       expected_status_code=http_client.CONFLICT)
+
+    def test_matchmaking_ban(self):
+        self.make_player()
+        with ExitStack() as stack:
+            class MockBanInfo(flexmatch.BanInfo):
+                _store = {}
+                def __enter__(self):
+                    self._value = self._store.get(self._key)
+                    return self
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    if self._modified is True and exc_type is None:
+                        if self._key in self._store:
+                            del self._store[self._key]
+                        if self._value is not None:
+                            self._store[self._key] = self._value.copy()
+                def get_redis(self):
+                    return None
+
+            config = FLEXMATCH_DEFAULTS | {"matchmaker_ban_times":
+                {"DG-Ranked": {
+                    "match_types": ["EMatchType::Ranked"],
+                    "ban_time_seconds": [0.1, 0.5],
+                    "expiry_seconds": 1}}}
+            get_config_ban_time_seconds = lambda i: config["matchmaker_ban_times"]["DG-Ranked"]["ban_time_seconds"][i]
+            get_config_expiry_seconds = lambda: config["matchmaker_ban_times"]["DG-Ranked"]["expiry_seconds"]
+
+            stack.enter_context(patch.object(flexmatch, "BanInfo", MockBanInfo))
+            stack.enter_context(patch.object(flexmatch, "_get_flexmatch_config_value", lambda config_key: config[config_key]))
+            stack.enter_context(patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient))
+
+            def _on_match_ban_event(match_type, match_id):
+                event_data = {"event": "match_player_banned", "match_id": match_id, "match_type": match_type, "player_id": self.player_id}
+                flexmatch.handle_match_event("match", event_data)
+
+            endpoint = self.endpoints["flexmatch_tickets"]
+
+            # Cannot start if matchmaker is banned.
+            _on_match_ban_event("EMatchType::Ranked", 1)
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertIsNotNone(ban_info)
+            self.assertEqual(ban_info["num_bans"], 1)
+            self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=get_config_ban_time_seconds(ban_info["num_bans"] - 1)))
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+
+            # Make sure each player is only banned once in a match.
+            _on_match_ban_event("EMatchType::Ranked", 1)
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertEqual(ban_info["num_bans"], 1)
+
+            # Escalating Ban time.
+            _on_match_ban_event("EMatchType::Ranked", 2)
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertIsNotNone(ban_info)
+            self.assertEqual(ban_info["num_bans"], 2)
+            self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=get_config_ban_time_seconds(ban_info["num_bans"] - 1)))
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+
+            # Ban removed when expired.
+            time.sleep(get_config_expiry_seconds())
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertIsNone(ban_info)
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.CREATED)
+
+            # Only ban relevant matchmakers.
+            _on_match_ban_event("EMatchType::Ranked", 3)
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertIsNotNone(ban_info)
+            self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+
 
     def test_delete_ticket_clears_cached_ticket_on_permanent_error(self):
         """ If a ticket isn't cancellable because it's completed, we should clear it ? """

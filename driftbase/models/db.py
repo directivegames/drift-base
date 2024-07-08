@@ -79,6 +79,9 @@ class User(ModelBase):
         return self.clients.filter(Client.client_id == self.client_id).first()
 
 
+tbl_user = User.__table__
+
+
 class UserRole(ModelBase):
     __tablename__ = "ck_userroles"
     role_id = Column(Integer, primary_key=True)
@@ -107,6 +110,9 @@ class UserIdentity(ModelBase):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+tbl_user_identity = UserIdentity.__table__
 
 
 class CorePlayer(ModelBase):
@@ -178,6 +184,9 @@ class Client(ModelBase):
         ):
             return True
         return False
+
+
+tbl_client = Client.__table__
 
 
 class ConnectEvent(ModelBase):

@@ -33,6 +33,7 @@
         "driftbase.api.lobbies",
         "driftbase.api.match_placements",
         "driftbase.api.sandbox",
+        "driftbase.api.client_configs",
 
         "drift.core.apps.provision",
         "drift.core.apps.healthcheck",
@@ -40,7 +41,8 @@
     ],
     "extensions": [
         "driftbase.clientsession",
-        "driftbase.analytics"
+        "driftbase.analytics",
+        "driftbase.extensions.metrics"
     ],
     "resources": [
         "drift.core.resources.postgres",
