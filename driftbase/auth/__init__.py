@@ -14,7 +14,8 @@ AUTH_MODULES = {
     'eos': 'driftbase.auth.eos',
     'ethereum': 'driftbase.auth.ethereum',
     'cognito': 'driftbase.auth.cognito',
-    'discord': 'driftbase.auth.discord',
+    'discord': 'driftbase.auth.discord',        
+    # below are disabled for now because we have not determined if/how their tokens should be verified
     # 'twitter': 'driftbase.auth.twitter',
     # 'steamopenid': 'driftbase.auth.steamopenid',
     # 'google': 'driftbase.auth.google',

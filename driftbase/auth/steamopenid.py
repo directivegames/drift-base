@@ -28,6 +28,8 @@ class SteamOpenIDValidator(BaseOAuthValidator):
     
 
     def _get_identity(self, provider_details: dict) -> requests.Response | dict:
+        self._abort_unauthorized('token validation not implemented')
+        '''
         data = provider_details
         data['openid.mode'] = 'check_authentication'
         r = requests.post('https://steamcommunity.com/openid/login', data=data)
@@ -37,6 +39,7 @@ class SteamOpenIDValidator(BaseOAuthValidator):
             return {'id': steam_id}
         else:
             self._abort_unauthorized(f'OAuth response is not valid: {r.text}')
+        '''        
 
 
 def authenticate(auth_info):

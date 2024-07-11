@@ -13,10 +13,13 @@ class TwitterValidator(BaseOAuthValidator):
 
 
     def _get_identity(self, provider_details: dict) -> requests.Response | dict:
+        self._abort_unauthorized('token validation not implemented')
+        '''
         access_token = provider_details['token']
         return requests.get('https://api.twitter.com/2/users/me', headers={
             'Authorization': f'Bearer {access_token}'
         })
+        '''        
 
 
 def authenticate(auth_info):    
