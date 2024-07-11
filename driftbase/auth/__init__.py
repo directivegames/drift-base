@@ -15,10 +15,10 @@ AUTH_MODULES = {
     'ethereum': 'driftbase.auth.ethereum',
     'cognito': 'driftbase.auth.cognito',
     'discord': 'driftbase.auth.discord',
-    'twitter': 'driftbase.auth.twitter',
-    'steamopenid': 'driftbase.auth.steamopenid',
-    'google': 'driftbase.auth.google',
-    'facebook': 'driftbase.auth.facebook',
+    # 'twitter': 'driftbase.auth.twitter',
+    # 'steamopenid': 'driftbase.auth.steamopenid',
+    # 'google': 'driftbase.auth.google',
+    # 'facebook': 'driftbase.auth.facebook',
 }
 
 LOCAL_AUTH = [
