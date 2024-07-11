@@ -40,6 +40,7 @@ class ActiveMatchesGetQuerySchema(ma.Schema):
     realm = ma.fields.String()
     version = ma.fields.String()
     player_id = ma.fields.List(ma.fields.Integer(), load_default=[])
+    match_id = ma.fields.List(ma.fields.Integer(), load_default=[])
     rows = ma.fields.Integer(load_default=DEFAULT_ROWS)
 
 
@@ -74,6 +75,8 @@ class ActiveMatchesAPI(MethodView):
             query = query.filter(Machine.placement == args.get("placement"))
         if args.get("realm"):
             query = query.filter(Machine.realm == args.get("realm"))
+        if args.get("match_id"):
+            query = query.filter(Match.match_id.in_(args.get("match_id")))
         player_ids = args["player_id"]
 
         query = query.order_by(-Match.num_players, -Match.server_id)
