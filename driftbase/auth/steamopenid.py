@@ -1,7 +1,6 @@
-import logging
-import os
 import requests
 import re
+import marshmallow as ma
 
 from .authenticate import authenticate as base_authenticate
 from .oauth import BaseOAuthValidator
@@ -9,23 +8,35 @@ from .oauth import BaseOAuthValidator
 
 provider_name = 'steamopenid'
 
-class SteamOpenIDValidator(BaseOAuthValidator):
-    def __init__(self):
-        super().__init__(name=provider_name, config_fields=['api_key'], details_fields=['openid.claimed_id', 'openid.assoc_handle', 'openid.signed', 'openid.sig', 'openid.ns'])
+
+class SteamOpenIDDetailsSchema(ma.Schema):
+    assoc_handle = ma.fields.String(data_key='openid.assoc_handle', required=True, allow_none=False)
+    claimed_id = ma.fields.String(data_key='openid.claimed_id', required=True, allow_none=False)
+    identity = ma.fields.String(data_key='openid.identity', required=True, allow_none=False)
+    ns = ma.fields.String(data_key='openid.ns', required=True, allow_none=False)
+    op_endpoint = ma.fields.String(data_key='openid.op_endpoint', required=True, allow_none=False)
+    response_nonce = ma.fields.String(data_key='openid.response_nonce', required=True, allow_none=False)
+    return_to = ma.fields.String(data_key='openid.return_to', required=True, allow_none=False)
+    signed = ma.fields.String(data_key='openid.signed', required=True, allow_none=False)
+    sig = ma.fields.String(data_key='openid.sig', required=True, allow_none=False)
     
 
-    def _call_oauth(self, provider_details: dict) -> requests.Response:
+
+class SteamOpenIDValidator(BaseOAuthValidator):
+    def __init__(self):
+        super().__init__(name=provider_name, details_schema=SteamOpenIDDetailsSchema)
+    
+
+    def _get_identity(self, provider_details: dict) -> requests.Response | dict:
         data = provider_details
         data['openid.mode'] = 'check_authentication'
-        return requests.post('https://steamcommunity.com/openid/login', data=data)
-
-
-    def _get_identity(self, response: requests.Response, provider_details: dict) -> requests.Response | dict:
-        if 'is_valid:true' in response.text:
+        r = requests.post('https://steamcommunity.com/openid/login', data=data)
+    
+        if 'is_valid:true' in r.text:
             steam_id = re.search(r'\d+$', provider_details['openid.claimed_id']).group(0)
             return {'id': steam_id}
         else:
-            self._abort_unauthorized(f'OAuth response is not valid: {response.text}')
+            self._abort_unauthorized(f'OAuth response is not valid: {r.text}')
 
 
 def authenticate(auth_info):
@@ -38,11 +49,6 @@ def authenticate(auth_info):
     '''
     assert auth_info['provider'] == provider_name
     validator = SteamOpenIDValidator()
-    '''    
-    validator.config = validator.config or {
-        'api_key': os.environ.get('STEAM_API_KEY')
-    }
-    '''
     identity = validator.get_oauth_identity(auth_info['provider_details'])
     identity_id = identity['id']
     # Do not use 'provider_name' in the username, needs to be consistent with steam.py
