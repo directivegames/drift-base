@@ -364,6 +364,8 @@ class FlexMatchTest(_BaseFlexmatchTest):
                 _store = {}
                 def __enter__(self):
                     self._value = self._store.get(self._key)
+                    if not self.exists():
+                        self._value = None
                     return self
                 def __exit__(self, exc_type, exc_val, exc_tb):
                     if self._modified is True and exc_type is None:
@@ -410,17 +412,24 @@ class FlexMatchTest(_BaseFlexmatchTest):
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNotNone(ban_info)
             self.assertEqual(ban_info["num_bans"], 2)
-            self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=get_config_ban_time_seconds(ban_info["num_bans"] - 1)))
+            ban_time_seconds = get_config_ban_time_seconds(ban_info["num_bans"] - 1)
+            self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=ban_time_seconds))
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
 
-            # Ban removed when expired.
-            time.sleep(get_config_expiry_seconds())
+            # Not banned when unban date reached.
+            time.sleep(ban_time_seconds)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNone(ban_info)
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.CREATED)
 
-            # Only ban relevant matchmakers.
+            # Reset Ban when expired.
+            time.sleep(get_config_expiry_seconds() - ban_time_seconds)
             _on_match_ban_event("EMatchType::Ranked", 3)
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertEqual(ban_info["num_bans"], 1)
+
+            # Only ban relevant matchmakers.
+            _on_match_ban_event("EMatchType::Ranked", 4)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNotNone(ban_info)
             self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)

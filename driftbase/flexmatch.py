@@ -260,13 +260,27 @@ def handle_match_event(queue_name, event_data):
         elif event_name == "match_player_banned":
             with BanInfo(player_id=event_data["player_id"], match_type=event_data["match_type"]) as ban_info:
                 ban_info.update_ban(event_data["match_id"])
+                if ban_info.exists():
+                    player_id = event_data["player_id"]
+                    log.info(f"Player {player_id} banned from matchmaking: {ban_info.matchmaker} "
+                             f"num_bans: {ban_info.num_bans} "
+                             f"unban_date: {ban_info.get_unban_date()} "
+                             f"expiry_date: {ban_info.get_expiry_date()}")
 
-def get_player_ban_info(player_id: int, matchmaker: str) -> dict | None:
+def get_player_ban_info(player_id: int, matchmaker: str, banned_only: bool = True) -> dict | None:
     with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
-        if ban_info.exists():
-            return {"unban_date": ban_info.get_unban_date(),
+        if banned_only:
+            if ban_info.is_banned():
+                return {"unban_date": ban_info.get_unban_date(),
+                        "num_bans": ban_info.num_bans,
+                        "last_ban_date": ban_info.last_ban_date}
+        elif ban_info.exists():
+            return {"banned": ban_info.is_banned(),
+                    "unban_date": ban_info.get_unban_date(),
                     "num_bans": ban_info.num_bans,
-                    "last_ban_date": ban_info.last_ban_date}
+                    "last_ban_date": ban_info.last_ban_date,
+                    "expiry_date": ban_info.get_expiry_date()}
+
 
 def process_flexmatch_event(flexmatch_event):
     if not check_event_tenant_account(flexmatch_event):
@@ -823,8 +837,8 @@ class BanInfo(object):
         self.matchmaker, self.config = self.find_config(matchmaker, match_type)
         key = f"player:{player_id}:flexmatch-ban:{self.matchmaker}:"
         self._redis = self.get_redis()
-        self._key = g.redis.make_key(key) if self._redis else key
-        self._lock = g.redis.conn.lock(self._key + "LOCK", timeout=30) if self._redis else None
+        self._key = self._redis.make_key(key) if self._redis else key
+        self._lock = self._redis.conn.lock(self._key + "LOCK", timeout=30) if self._redis else None
         self._ttl = ttl or self.config.get("expiry_seconds", 60 * 60)
 
     def __enter__(self):
@@ -844,8 +858,11 @@ class BanInfo(object):
                 pipe.execute()
             self._lock.release()
 
+    def is_banned(self) -> bool:
+        return self._value and (datetime.now(timezone.utc) < self.get_unban_date())
+
     def exists(self) -> bool:
-        return self._value and (datetime.now(timezone.utc) < self.last_ban_date + timedelta(seconds=self._ttl))
+        return self._value and (datetime.now(timezone.utc) < self.get_expiry_date())
     def update_ban(self, match_id):
         self._value = self._value or {}
         ban_match_ids = self._value.get("ban_match_ids", [])
@@ -859,6 +876,8 @@ class BanInfo(object):
         ban_duration = time_tiers[max(0, min(self.num_bans - 1, len(time_tiers) - 1))] if self.num_bans > 0 else 0
         return self.last_ban_date + timedelta(seconds=ban_duration)
 
+    def get_expiry_date(self):
+        return self.last_ban_date + timedelta(seconds=self._ttl)
     @property
     def num_bans(self):
         return self._value.get("num_bans", 0)
