@@ -33,10 +33,10 @@ def authenticate(auth_info):
             abort_unauthorized("Bad Request. 'username' cannot be an empty string.")
         username = "oculus:" + provider_details['username']
         password = provider_details['password']
-        return base_authenticate(username, password, True or automatic_account_creation)
+        return base_authenticate(username, password, automatic_account_creation)
     identity_id = validate_oculus_ticket()
     username = "oculus:" + identity_id
-    return base_authenticate(username, "", True or automatic_account_creation)
+    return base_authenticate(username, "", automatic_account_creation)
 
 
 def validate_oculus_ticket():

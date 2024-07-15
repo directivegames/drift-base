@@ -13,7 +13,7 @@ def authenticate(auth_info):
     automatic_account_creation = auth_info.get("automatic_account_creation", True)
     identity_id = validate_epic_ticket()
     username = "epic:" + identity_id
-    return base_authenticate(username, "", True or automatic_account_creation)
+    return base_authenticate(username, "", automatic_account_creation)
 
 
 class EpicProviderAuthDetailsSchema(ma.Schema):
