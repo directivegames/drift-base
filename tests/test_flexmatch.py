@@ -366,6 +366,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
                     self._value = self._store.get(self._key)
                     if not self.exists():
                         self._value = None
+                    self._post_value_loaded()
                     return self
                 def __exit__(self, exc_type, exc_val, exc_tb):
                     if self._modified is True and exc_type is None:

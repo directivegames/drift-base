@@ -846,7 +846,14 @@ class BanInfo(object):
         value = g.redis.conn.get(self._key)
         if value is not None:
             self._value = json.loads(value)
+        self._post_value_loaded()
         return self
+
+    def _post_value_loaded(self):
+        if self._value:
+            last_ban_date = self._value.get("last_ban_date")
+            if isinstance(date, str):
+                self._value["last_ban_date"] = datetime.fromisoformat(last_ban_date)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._lock.owned():
