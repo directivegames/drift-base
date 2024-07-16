@@ -280,6 +280,7 @@ def get_player_ban_info(player_id: int, matchmaker: str, banned_only: bool = Tru
                     "num_bans": ban_info.num_bans,
                     "last_ban_date": ban_info.last_ban_date,
                     "expiry_date": ban_info.get_expiry_date()}
+    return None
 
 
 def process_flexmatch_event(flexmatch_event):
