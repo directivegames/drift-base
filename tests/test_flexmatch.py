@@ -364,6 +364,9 @@ class FlexMatchTest(_BaseFlexmatchTest):
                 _store = {}
                 def __enter__(self):
                     self._value = self._store.get(self._key)
+                    if not self.exists():
+                        self._value = None
+                    self._post_value_loaded()
                     return self
                 def __exit__(self, exc_type, exc_val, exc_tb):
                     if self._modified is True and exc_type is None:
@@ -386,8 +389,8 @@ class FlexMatchTest(_BaseFlexmatchTest):
             stack.enter_context(patch.object(flexmatch, "_get_flexmatch_config_value", lambda config_key: config[config_key]))
             stack.enter_context(patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient))
 
-            def _on_match_ban_event(match_type, match_id):
-                event_data = {"event": "match_player_banned", "match_id": match_id, "match_type": match_type, "player_id": self.player_id}
+            def _on_match_ban_event(match_type, match_id, player_id = self.player_id):
+                event_data = {"event": "match_player_banned", "match_id": match_id, "match_type": match_type, "player_id": player_id}
                 flexmatch.handle_match_event("match", event_data)
 
             endpoint = self.endpoints["flexmatch_tickets"]
@@ -410,21 +413,38 @@ class FlexMatchTest(_BaseFlexmatchTest):
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNotNone(ban_info)
             self.assertEqual(ban_info["num_bans"], 2)
-            self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=get_config_ban_time_seconds(ban_info["num_bans"] - 1)))
+            ban_time_seconds = get_config_ban_time_seconds(ban_info["num_bans"] - 1)
+            self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=ban_time_seconds))
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
 
-            # Ban removed when expired.
-            time.sleep(get_config_expiry_seconds())
+            # Not banned when unban date reached.
+            time.sleep(ban_time_seconds)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNone(ban_info)
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.CREATED)
 
-            # Only ban relevant matchmakers.
+            # Reset Ban when expired.
+            time.sleep(get_config_expiry_seconds() - ban_time_seconds)
             _on_match_ban_event("EMatchType::Ranked", 3)
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            self.assertEqual(ban_info["num_bans"], 1)
+
+            # Only ban relevant matchmakers.
+            _on_match_ban_event("EMatchType::Ranked", 4)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertIsNotNone(ban_info)
             self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+
+            # Cannot start matchmaker if party member is banned.
+            member, host = self._create_party()
+            _on_match_ban_event("EMatchType::Ranked", 4, member["id"])
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+            self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)
+            _on_match_ban_event("EMatchType::Ranked", 5, host["id"])
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+            self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)
+
 
 
     def test_delete_ticket_clears_cached_ticket_on_permanent_error(self):

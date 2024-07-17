@@ -241,6 +241,7 @@ class MatchesTest(BaseMatchTest):
         match = self._create_match(max_players=3)
         match_url = match["url"]
         teams_url = match["teams_url"]
+        match_id = match["match_id"]
         resp = self.get(match_url)
 
         matchplayers_url = resp.json()["matchplayers_url"]
@@ -283,6 +284,11 @@ class MatchesTest(BaseMatchTest):
         self.assertEqual(len(resp.json()), 1)
         players = resp.json()[0]["players"]
         self.assertEqual(players[1]["player_id"], other_player_id)
+
+        resp = self.get(self.endpoints["active_matches"] + "?match_id=9999999")
+        self.assertEqual(len(resp.json()), 0)
+        resp = self.get(self.endpoints["active_matches"] + f"?match_id=9999999&match_id={match_id}")
+        self.assertEqual(len(resp.json()), 1)
 
     def players_by_status(self, players):
         ret = defaultdict(list)

@@ -10,6 +10,7 @@ from drift.core.extensions.driftconfig import get_tenant_config_value
 from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.messages import post_message
+from driftbase.models.db import CorePlayer
 from driftbase.utils.redis_utils import JsonLock
 from datetime import datetime, date, timezone, timedelta
 
@@ -93,7 +94,7 @@ def upsert_flexmatch_ticket(player_id, matchmaking_configuration, extra_matchmak
             # otherwise, we issue a new ticket
 
         # Generate a list of players relevant to the request; this is the list of online players in the party if the player belongs to one, otherwise the list is just the player
-        member_ids = _get_player_party_members(player_id)
+        member_ids = _get_player_party_member_ids(player_id)
         gamelift_client = GameLiftRegionClient(AWS_HOME_REGION, _get_tenant_name())
         try:
             log.info(f"Issuing a new {matchmaking_configuration} matchmaking ticket for playerIds {member_ids} on behalf of calling player {player_id}")
@@ -141,11 +142,11 @@ def cancel_active_ticket(player_id, ticket_id):
     with _LockedTicket(_get_player_ticket_key(player_id)) as ticket_lock:
         if ticket_lock.ticket and ticket_id == ticket_lock.ticket["TicketId"]:
             try:
-                return _cancel_locked_ticket(ticket_lock.ticket, _get_player_party_members(player_id))
+                return _cancel_locked_ticket(ticket_lock.ticket, _get_player_party_member_ids(player_id))
             except GameliftClientException:
                 ticket_lock.ticket = None  # Delete the ticket locally if there is an unrecoverable error
                 log.warning(f"Clearing ticket {ticket_id} from cache because of unrecoverable error during cancellation attempt.")
-                _post_matchmaking_event_to_members(_get_player_party_members(player_id), "MatchmakingCancelled")
+                _post_matchmaking_event_to_members(_get_player_party_member_ids(player_id), "MatchmakingCancelled")
                 raise
     return None
 
@@ -224,7 +225,7 @@ def handle_party_event(queue_name, event_data):
         with _LockedTicket(_make_player_ticket_key(player_id)) as ticket_lock:
             if ticket_lock.ticket:
                 log.info(f"handle_party_event:{event_name}: Cancelling personal ticket {ticket_lock.ticket['TicketId']} for player {player_id}")
-                _cancel_locked_ticket(ticket_lock.ticket, _get_player_party_members(player_id))
+                _cancel_locked_ticket(ticket_lock.ticket, _get_player_party_member_ids(player_id))
 
         # Party ticket
         with _LockedTicket(_make_party_ticket_key(party_id)) as ticket_lock:
@@ -259,13 +260,28 @@ def handle_match_event(queue_name, event_data):
         elif event_name == "match_player_banned":
             with BanInfo(player_id=event_data["player_id"], match_type=event_data["match_type"]) as ban_info:
                 ban_info.update_ban(event_data["match_id"])
+                if ban_info.exists():
+                    player_id = event_data["player_id"]
+                    log.info(f"Player {player_id} banned from matchmaking: {ban_info.matchmaker} "
+                             f"num_bans: {ban_info.num_bans} "
+                             f"unban_date: {ban_info.get_unban_date()} "
+                             f"expiry_date: {ban_info.get_expiry_date()}")
 
-def get_player_ban_info(player_id: int, matchmaker: str) -> dict | None:
+def get_player_ban_info(player_id: int, matchmaker: str, banned_only: bool = True) -> dict | None:
     with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
-        if ban_info.exists():
-            return {"unban_date": ban_info.get_unban_date(),
+        if banned_only:
+            if ban_info.is_banned():
+                return {"unban_date": ban_info.get_unban_date(),
+                        "num_bans": ban_info.num_bans,
+                        "last_ban_date": ban_info.last_ban_date}
+        elif ban_info.exists():
+            return {"banned": ban_info.is_banned(),
+                    "unban_date": ban_info.get_unban_date(),
                     "num_bans": ban_info.num_bans,
-                    "last_ban_date": ban_info.last_ban_date}
+                    "last_ban_date": ban_info.last_ban_date,
+                    "expiry_date": ban_info.get_expiry_date()}
+    return None
+
 
 def process_flexmatch_event(flexmatch_event):
     if not check_event_tenant_account(flexmatch_event):
@@ -391,13 +407,20 @@ def _get_player_ticket_key(player_id):
         return _make_party_ticket_key(player_party_id)
     return _make_player_ticket_key(player_id)
 
-def _get_player_party_members(player_id):
+def _get_player_party_member_ids(player_id):
     """ Return the full list of players who share a party with 'player_id', including 'player_id'. If 'player_id' isn't
     a party member, the returned list will contain only 'player_id'"""
     party_id = get_player_party(player_id)
     if party_id:
         return get_party_members(party_id)
     return [player_id]
+
+def get_player_party_and_members(player_id) -> (int, list):
+    """ Return the party id and full list of players who share a party with 'player_id', including 'player_id'. If 'player_id' isn't
+        a party member, the returned list will contain only 'player_id'"""
+    party_id = get_player_party(player_id)
+    party_member_ids = _get_player_party_member_ids(player_id) if party_id else [player_id]
+    return party_id, g.db.query(CorePlayer.player_id, CorePlayer.player_name).filter(CorePlayer.player_id.in_(party_member_ids)).all()
 
 def _get_player_attributes(player_id, extra_player_data):
     ret = extra_player_data.get(player_id, {})
@@ -815,8 +838,8 @@ class BanInfo(object):
         self.matchmaker, self.config = self.find_config(matchmaker, match_type)
         key = f"player:{player_id}:flexmatch-ban:{self.matchmaker}:"
         self._redis = self.get_redis()
-        self._key = g.redis.make_key(key) if self._redis else key
-        self._lock = g.redis.conn.lock(self._key + "LOCK", timeout=30) if self._redis else None
+        self._key = self._redis.make_key(key) if self._redis else key
+        self._lock = self._redis.conn.lock(self._key + "LOCK", timeout=30) if self._redis else None
         self._ttl = ttl or self.config.get("expiry_seconds", 60 * 60)
 
     def __enter__(self):
@@ -824,7 +847,14 @@ class BanInfo(object):
         value = g.redis.conn.get(self._key)
         if value is not None:
             self._value = json.loads(value)
+        self._post_value_loaded()
         return self
+
+    def _post_value_loaded(self):
+        if self._value:
+            last_ban_date = self._value.get("last_ban_date")
+            if isinstance(date, str):
+                self._value["last_ban_date"] = datetime.fromisoformat(last_ban_date)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._lock.owned():
@@ -836,8 +866,11 @@ class BanInfo(object):
                 pipe.execute()
             self._lock.release()
 
+    def is_banned(self) -> bool:
+        return self._value and (datetime.now(timezone.utc) < self.get_unban_date())
+
     def exists(self) -> bool:
-        return self._value and (datetime.now(timezone.utc) < self.last_ban_date + timedelta(seconds=self._ttl))
+        return self._value and (datetime.now(timezone.utc) < self.get_expiry_date())
     def update_ban(self, match_id):
         self._value = self._value or {}
         ban_match_ids = self._value.get("ban_match_ids", [])
@@ -851,6 +884,8 @@ class BanInfo(object):
         ban_duration = time_tiers[max(0, min(self.num_bans - 1, len(time_tiers) - 1))] if self.num_bans > 0 else 0
         return self.last_ban_date + timedelta(seconds=ban_duration)
 
+    def get_expiry_date(self):
+        return self.last_ban_date + timedelta(seconds=self._ttl)
     @property
     def num_bans(self):
         return self._value.get("num_bans", 0)

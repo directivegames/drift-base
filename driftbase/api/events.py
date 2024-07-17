@@ -64,7 +64,7 @@ class EventsAPI(MethodView):
         # the user has role "service" in which case it should only set the player_id if
         # it's not passed in the event.
         player_id = current_user["player_id"]
-        is_service = "service" in current_user["roles"]
+        is_service = "service" in current_user["roles"] or "game_service" in current_user["roles"]
 
         for event in events:
             if is_service:

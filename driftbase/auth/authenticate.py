@@ -67,19 +67,19 @@ def authenticate_with_provider(auth_info):
             abort_unauthorized("Bad Request. 'username' cannot be an empty string.")
         username = "viveport:" + provider_details['username']
         password = provider_details['password']
-        identity = authenticate(username, password, True or automatic_account_creation)
+        identity = authenticate(username, password, automatic_account_creation)
 
     elif provider == "hypereal" and provider_details.get('provisional', False):
         if len(provider_details['username']) < 1:
             abort_unauthorized("Bad Request. 'username' cannot be an empty string.")
         username = "hypereal:" + provider_details['username']
         password = provider_details['password']
-        identity = authenticate(username, password, True or automatic_account_creation)
+        identity = authenticate(username, password, automatic_account_creation)
 
     elif provider == "7663":
         username = "7663:" + provider_details['username']
         password = provider_details['password']
-        identity = authenticate(username, password, True or automatic_account_creation)
+        identity = authenticate(username, password, automatic_account_creation)
 
     else:
         abort_unauthorized(f"Bad Request. Unknown provider '{provider}'.")
