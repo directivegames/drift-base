@@ -1,39 +1,96 @@
 # Drift-Base Change Log
 
 - [Drift-Base Change Log](#drift-base-change-log)
+  - [0.20.0](#0200)
+    - [Features](#features)
+  - [0.19.0](#0190)
+  - [0.18.4](#0184)
+  - [0.18.3](#0183)
+  - [0.18.2](#0182)
+  - [0.18.1](#0181)
+  - [0.18.0](#0180)
+  - [0.17.0](#0170)
+  - [0.16.0](#0160)
+  - [0.15.0](#0150)
+  - [0.14.0](#0140)
+  - [0.13.0](#0130)
   - [0.12.0](#0120)
-  - [0.11.0](#0110)
-  - [0.10.0](#0100)
-  - [0.9.0](#090)
-  - [0.8.0](#080)
-  - [0.7.0](#070)
-  - [0.6.3](#063)
-  - [0.6.2](#062)
-  - [0.6.1](#061)
-  - [0.6.0](#060)
-    - [New Features](#new-features)
     - [Feature Improvements](#feature-improvements)
+  - [0.11.0](#0110)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements)
+  - [0.10.0](#0100)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements-1)
+  - [0.9.0](#090)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements-2)
+  - [0.8.0](#080)
+    - [New features](#new-features)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements-3)
+  - [0.7.0](#070)
+    - [New features](#new-features-1)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements-4)
+  - [0.6.3](#063)
+    - [New Features](#new-features-2)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements-5)
+  - [0.6.2](#062)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements-6)
+  - [0.6.1](#061)
+    - [Bug Fixes / Feature Improvements](#bug-fixes--feature-improvements-7)
+  - [0.6.0](#060)
+    - [New Features](#new-features-3)
+    - [Feature Improvements](#feature-improvements-1)
   - [0.5.4](#054)
-    - [Bug Fixes](#bug-fixes)
     - [Optimizations](#optimizations)
+    - [Bug fixes](#bug-fixes)
   - [0.5.3](#053)
-    - [Bug Fixes](#bug-fixes-1)
+    - [Bug fixes](#bug-fixes-1)
   - [0.5.2](#052)
     - [Optimizations](#optimizations-1)
   - [0.5.1](#051)
-    - [Bug Fixes](#bug-fixes-2)
+    - [Bug fixes](#bug-fixes-2)
   - [0.5.0](#050)
-    - [New Features](#new-features-1)
+    - [New Features](#new-features-4)
     - [Bug Fixes](#bug-fixes-3)
     - [Deprecations](#deprecations)
   - [0.4.1](#041)
     - [Bug Fixes](#bug-fixes-4)
   - [0.4.0](#040)
-    - [New Features](#new-features-2)
+    - [New Features](#new-features-5)
     - [Bug Fixes](#bug-fixes-5)
     - [Deprecations](#deprecations-1)
 
 ---
+## 0.20.0
+
+### Features
+
+- Support Discord authentication
+- Improved player banning support in FlexMatch
+
+## 0.19.0
+
+- Support for banning players in FlexMatch queues
+- Add basic client configuration endpoint
+
+## 0.18.4
+
+## 0.18.3
+## 0.18.2
+## 0.18.1
+
+- Add support for DataDog traces through Shoutout
+
+## 0.18.0
+
+## 0.17.0
+
+## 0.16.0
+
+## 0.15.0
+
+## 0.14.0
+
+## 0.13.0
+
 ## 0.12.0
 
 ### Feature Improvements
