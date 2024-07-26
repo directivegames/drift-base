@@ -853,7 +853,7 @@ class BanInfo(object):
     def _post_value_loaded(self):
         if self._value:
             last_ban_date = self._value.get("last_ban_date")
-            if isinstance(date, str):
+            if isinstance(last_ban_date, str):
                 self._value["last_ban_date"] = datetime.fromisoformat(last_ban_date)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
