@@ -263,11 +263,11 @@ def handle_match_event(queue_name, event_data):
             with BanInfo(player_id=player_id, match_type=match_type) as ban_info:
                 ban_info.update_ban(match_id)
                 if ban_info.exists():
-                    log.info(f"Player {player_id} ban info updated: "
-                             f"matchmaker: {ban_info.matchmaker} "
-                             f"num_bans: {ban_info.num_bans} "
-                             f"unban_date: {ban_info.get_unban_date()} "
-                             f"expiry_date: {ban_info.get_expiry_date()}")
+                    log.info(f"Player {player_id} ban info updated: ",
+                             extra={"matchmaker": ban_info.matchmaker,
+                                    "num_bans": ban_info.num_bans,
+                                    "unban_date": ban_info.get_unban_date(),
+                                    "expiry_date": ban_info.get_expiry_date()})
 
 def get_player_ban_info(player_id: int, matchmaker: str, banned_only: bool = True) -> dict | None:
     with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
