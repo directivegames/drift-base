@@ -258,14 +258,16 @@ def handle_match_event(queue_name, event_data):
                     player_ticket["Status"] = "MATCH_COMPLETE"
                     player_ticket["GameSessionConnectionInfo"] = None
         elif event_name == "match_player_banned":
-            with BanInfo(player_id=event_data["player_id"], match_type=event_data["match_type"]) as ban_info:
-                ban_info.update_ban(event_data["match_id"])
+            player_id, match_id, match_type = event_data["player_id"], event_data["match_id"], event_data["match_type"]
+            log.info(f"Player {player_id} in {match_type} match {match_id} banned.")
+            with BanInfo(player_id=player_id, match_type=match_type) as ban_info:
+                ban_info.update_ban(match_id)
                 if ban_info.exists():
-                    player_id = event_data["player_id"]
-                    log.info(f"Player {player_id} banned from matchmaking: {ban_info.matchmaker} "
-                             f"num_bans: {ban_info.num_bans} "
-                             f"unban_date: {ban_info.get_unban_date()} "
-                             f"expiry_date: {ban_info.get_expiry_date()}")
+                    log.info(f"Player {player_id} ban info updated: ",
+                             extra={"matchmaker": ban_info.matchmaker,
+                                    "num_bans": ban_info.num_bans,
+                                    "unban_date": ban_info.get_unban_date(),
+                                    "expiry_date": ban_info.get_expiry_date()})
 
 def get_player_ban_info(player_id: int, matchmaker: str, banned_only: bool = True) -> dict | None:
     with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
@@ -846,14 +848,17 @@ class BanInfo(object):
         self._lock.acquire(blocking=True)
         value = g.redis.conn.get(self._key)
         if value is not None:
-            self._value = json.loads(value)
+            try:
+                self._value = json.loads(value)
+            except json.JSONDecodeError:
+                log.info(f"Failed to load BanInfo {self._key}")
         self._post_value_loaded()
         return self
 
     def _post_value_loaded(self):
         if self._value:
             last_ban_date = self._value.get("last_ban_date")
-            if isinstance(date, str):
+            if isinstance(last_ban_date, str):
                 self._value["last_ban_date"] = datetime.fromisoformat(last_ban_date)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -888,11 +893,19 @@ class BanInfo(object):
         return self.last_ban_date + timedelta(seconds=self._ttl)
     @property
     def num_bans(self):
-        return self._value.get("num_bans", 0)
+        if datetime.now(timezone.utc) < self.get_expiry_date():
+            return self._value.get("num_bans", 0)
+        return 0
 
     @property
     def last_ban_date(self):
-        return self._value.get("last_ban_date", datetime.now(timezone.utc))
+        last_ban_date = self._value.get("last_ban_date", datetime.now(timezone.utc))
+        if isinstance(last_ban_date, str):
+            try:
+                last_ban_date = datetime.fromisoformat(last_ban_date)
+            except ValueError as e:
+                last_ban_date = datetime.now(timezone.utc)
+        return last_ban_date
 
     @staticmethod
     def find_config(matchmaker, match_type):

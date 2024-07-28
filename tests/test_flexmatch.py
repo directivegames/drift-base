@@ -363,8 +363,10 @@ class FlexMatchTest(_BaseFlexmatchTest):
             class MockBanInfo(flexmatch.BanInfo):
                 _store = {}
                 def __enter__(self):
-                    self._value = self._store.get(self._key)
-                    if not self.exists():
+                    value = self._store.get(self._key)
+                    if value is not None:
+                        self._value = json.loads(value)
+                    else:
                         self._value = None
                     self._post_value_loaded()
                     return self
@@ -373,7 +375,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
                         if self._key in self._store:
                             del self._store[self._key]
                         if self._value is not None:
-                            self._store[self._key] = self._value.copy()
+                            self._store[self._key] = json.dumps(self._value, default=lambda obj: obj.isoformat())
                 def get_redis(self):
                     return None
 
@@ -405,6 +407,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
 
             # Make sure each player is only banned once in a match.
             _on_match_ban_event("EMatchType::Ranked", 1)
+            _on_match_ban_event("EMatchType::Ranked", 1)
             ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
             self.assertEqual(ban_info["num_bans"], 1)
 
@@ -419,14 +422,17 @@ class FlexMatchTest(_BaseFlexmatchTest):
 
             # Not banned when unban date reached.
             time.sleep(ban_time_seconds)
-            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked", banned_only=True)
             self.assertIsNone(ban_info)
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.CREATED)
 
             # Reset Ban when expired.
+            # ban info is still valid before it expires.
+            ban_info_banned_but_not_expired = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked", banned_only=False)
+            self.assertEqual(ban_info_banned_but_not_expired["num_bans"], 2)
             time.sleep(get_config_expiry_seconds() - ban_time_seconds)
             _on_match_ban_event("EMatchType::Ranked", 3)
-            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked", banned_only=True)
             self.assertEqual(ban_info["num_bans"], 1)
 
             # Only ban relevant matchmakers.
