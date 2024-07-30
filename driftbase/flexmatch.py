@@ -59,6 +59,9 @@ log = logging.getLogger(__name__)
 # Latency reporting
 
 def update_player_latency(player_id, region, latency_ms):
+    if latency_ms <= 1:
+        log.warning(f"Player {player_id} reported a invalid latency of {latency_ms}ms in region {region}. Ignoring.")
+        return
     region_key = _make_player_latency_key(player_id) + region
     with g.redis.conn.pipeline() as pipe:
         pipe.lpush(region_key, latency_ms)
@@ -578,22 +581,34 @@ def _process_matchmaking_succeeded_event(event):
                 for ticket, players in players_by_ticket.items():
                     if player_id in players:
                         log.warning(f"Weird, player {player_id} is registered to ticket {player_ticket['TicketId']} but this update pegs him on ticket {ticket}")
-                        break
             log.info(f"Updating ticket {player_ticket['TicketId']} for player key {ticket_key} from {player_ticket['Status']} to 'COMPLETED'")
             player_ticket["Status"] = "COMPLETED"
             player_ticket["MatchId"] = event["matchId"]
             player_ticket["GameSessionConnectionInfo"] = copy.copy(game_session_info)
-            player_ticket["GameSessionConnectionInfo"].update({
-                "ConnectionString": connection_string,
-                "ConnectionOptions": connection_info_by_player_id[player_id]
-            })
+            try:
+                log.info(f"Populating connection info for player {player_id} in ticket {player_ticket['TicketId']}")
+                player_ticket["GameSessionConnectionInfo"].update({
+                    "ConnectionString": connection_string,
+                    "ConnectionOptions": connection_info_by_player_id[player_id]
+                })
+            except KeyError as e:
+                # Noticed that this may happen if the player is a part of a backfill ticket, and was originally a part
+                # of a party ticket.
+                # In this case, he has no PlayerSessionId and his entry in connection_info_by_player_id isn't populated
+                log.error(f"Failed to populate connection info: {e}")
+                continue
+
+            log.info(f"Sending connection info to players in ticket {player_ticket}")
             for ticket_player in player_ticket["Players"]:
-                receiver_id = int(ticket_player["PlayerId"])
-                event_data = {
-                    "connection_string": connection_string,
-                    "options": connection_info_by_player_id[receiver_id]
-                }
-                _post_matchmaking_event_to_members([receiver_id], "MatchmakingSuccess", event_data=event_data)
+                try:  # wrap this for good measure so a failure for one player doesn't block the others.
+                    receiver_id = int(ticket_player["PlayerId"])
+                    event_data = {
+                        "connection_string": connection_string,
+                        "options": connection_info_by_player_id[receiver_id]
+                    }
+                    _post_matchmaking_event_to_members([receiver_id], "MatchmakingSuccess", event_data=event_data)
+                except Exception as e:
+                    log.error(f"Failed to post 'MatchmakingSuccess' update to player {receiver_id}: {e}")
 
 def _process_matchmaking_cancelled_event(event):
     for ticket_id, player in _ticket_players(event):
