@@ -59,7 +59,7 @@ log = logging.getLogger(__name__)
 # Latency reporting
 
 def update_player_latency(player_id, region, latency_ms):
-    if latency_ms <= 1:
+    if latency_ms < 1.0:
         log.warning(f"Player {player_id} reported a invalid latency of {latency_ms}ms in region {region}. Ignoring.")
         return
     region_key = _make_player_latency_key(player_id) + region
