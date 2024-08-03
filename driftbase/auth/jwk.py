@@ -27,6 +27,6 @@ def _get_jwk_client(public_keys_url):
     global _jwk_clients
     client = _jwk_clients.get(public_keys_url)
     if client is None:
-        client = jwt.PyJWKClient(public_keys_url, cache_keys=True, cache_jwk_set=True)
+        client = jwt.PyJWKClient(public_keys_url, cache_keys=True, cache_jwk_set=True, lifespan=86400)
         _jwk_clients[public_keys_url] = client
     return client
