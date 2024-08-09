@@ -10,17 +10,15 @@ import http.client as http_client
 import logging
 from datetime import timedelta
 from hashlib import pbkdf2_hmac
-from json import JSONDecodeError
-from urllib.error import URLError
 
 import jwt
 import marshmallow as ma
 from drift.blueprint import abort
-from jwt import PyJWKClientError
 
 from driftbase.auth import get_provider_config
 from .authenticate import authenticate as base_authenticate, AuthenticationException, ServiceUnavailableException, \
     abort_unauthorized, InvalidRequestException, UnauthorizedException
+from .jwk import _get_key_from_token
 
 # See https://repost.aws/knowledge-center/decode-verify-cognito-json-token
 # for more information on how to validate a Cognito token.
@@ -62,7 +60,8 @@ def authenticate(auth_info):
     automatic_account_creation = auth_info.get('automatic_account_creation', True)
     username = f"cognito:{identity_id}"
     # FIXME: The static salt should perhaps be configured per tenant
-    fallback_username = "cognito:" + pbkdf2_hmac('sha256', identity_id.encode('utf-8'), b'static_salt', iterations=1).hex()
+    fallback_username = "cognito:" + pbkdf2_hmac('sha256', identity_id.encode('utf-8'), b'static_salt',
+                                                 iterations=1).hex()
     return base_authenticate(username, "", automatic_account_creation, fallback_username=fallback_username)
 
 
@@ -146,17 +145,3 @@ def _decode_and_verify_jwt(token, key, audience, aws_region, user_pool_id):
         raise UnauthorizedException("Invalid JWT, issuer not trusted")
 
     return payload
-
-
-def _get_key_from_token(token, cognito_public_keys_url):
-    try:
-        jwk_client = jwt.PyJWKClient(cognito_public_keys_url)
-        jwk = jwk_client.get_signing_key_from_jwt(token)
-    except URLError as e:
-        raise ServiceUnavailableException("Failed to fetch public keys for token validation") from e
-    except (JSONDecodeError, PyJWKClientError) as e:
-        raise ServiceUnavailableException("Failed to read public keys for token validation") from None
-
-    if jwk is None:
-        raise UnauthorizedException("Failed to find a matching public key for token validation")
-    return jwk.key

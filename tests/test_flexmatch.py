@@ -399,11 +399,11 @@ class FlexMatchTest(_BaseFlexmatchTest):
 
             # Cannot start if matchmaker is banned.
             _on_match_ban_event("EMatchType::Ranked", 1)
-            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked")
+            ban_info = flexmatch.get_player_ban_info(self.player_id, "DG-Ranked-2-4-5")
             self.assertIsNotNone(ban_info)
             self.assertEqual(ban_info["num_bans"], 1)
             self.assertGreaterEqual(ban_info["unban_date"], ban_info["last_ban_date"] + timedelta(seconds=get_config_ban_time_seconds(ban_info["num_bans"] - 1)))
-            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+            self.post(endpoint, data={"matchmaker": "DG-Ranked-111-222-666"}, expected_status_code=http_client.FORBIDDEN)
 
             # Make sure each player is only banned once in a match.
             _on_match_ban_event("EMatchType::Ranked", 1)

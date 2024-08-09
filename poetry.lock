@@ -2936,13 +2936,13 @@ reference = "directive"
 
 [[package]]
 name = "python-drift"
-version = "0.23.0"
+version = "0.23.8"
 description = "\"Micro-framework for SOA based applications\""
 optional = false
 python-versions = "*"
 files = [
-    {file = "python_drift-0.23.0-py3-none-any.whl", hash = "sha256:343cf69f6c9ddab4f999f4c2a44f17058503651b47a5f3d3ca66df4fecfdb0a2"},
-    {file = "python_drift-0.23.0.tar.gz", hash = "sha256:120a3f2a10346c642c7d55ee229c3b5da8122717770fa787e30f81591a3430d0"},
+    {file = "python_drift-0.23.8-py3-none-any.whl", hash = "sha256:5498f3f4efb0d79e691fab71fb1c62990f125ff2740dfec1afa6ec57320cbac6"},
+    {file = "python_drift-0.23.8.tar.gz", hash = "sha256:2549b616993b6cc07ef2b3c474a601b8fe40388d98b6c5a01f88d64f056f70ff"},
 ]
 
 [package.dependencies]
@@ -2962,7 +2962,7 @@ marshmallow-sqlalchemy = "*"
 psycopg2-binary = ">=2.7.4"
 PyJWT = ">=2"
 pyopenssl = ">=17"
-python-driftconfig = ">=0.5.2"
+python-driftconfig = ">=0.5.3"
 redis = "*"
 sentry-sdk = {version = "*", extras = ["flask"]}
 SQLAlchemy = "<2.0"
@@ -2978,13 +2978,13 @@ reference = "directive"
 
 [[package]]
 name = "python-driftconfig"
-version = "0.5.2"
+version = "0.5.3"
 description = "\"Drift Configuration Management\""
 optional = false
 python-versions = "*"
 files = [
-    {file = "python-driftconfig-0.5.2.tar.gz", hash = "sha256:b77677e20dcf612aabe873bbdfeb09d91f90d0cba958b1fb3ebba0cbf88dab6f"},
-    {file = "python_driftconfig-0.5.2-py3-none-any.whl", hash = "sha256:5cb54505b7a535437cb8bf8cfe206937862408c45da57ebee0f996ce57f48ec3"},
+    {file = "python_driftconfig-0.5.3-py3-none-any.whl", hash = "sha256:4fec12f3ac71bf91a5266ec2567aec16626e2ee9d910ad33a58433555498cc74"},
+    {file = "python_driftconfig-0.5.3.tar.gz", hash = "sha256:91a8b316ab8a780f5390ea50bcb5c97c9d18ea2b965caf81413ab40f12770eac"},
 ]
 
 [package.dependencies]
@@ -4219,4 +4219,4 @@ reference = "directive"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "acc3667bc19f2a39d06b46fba35fbbba066aadd7cfa9a16f6be55692d566d9ec"
+content-hash = "b1020adb9da88b37118ab2f99ea2b9acd2692dcd252b71d9d7d6fd610a01d262"

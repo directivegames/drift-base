@@ -6,6 +6,7 @@ import jwt
 
 import driftbase.auth.cognito
 import driftbase.auth.cognito as cognito
+import driftbase.auth.jwk
 from driftbase.auth.authenticate import InvalidRequestException, ServiceUnavailableException, \
     UnauthorizedException
 from tests.test_auth import BaseAuthTestCase
@@ -72,23 +73,25 @@ class TestCognitoValidate(unittest.TestCase):
 class TestCognitoGetKeys(unittest.TestCase):
     def test_fails_when_failing_to_load_keys(self):
         with self.assertRaises(ServiceUnavailableException) as e:
-            cognito._get_key_from_token(TEST_JWT, 'https://invalid.com/region/userpool/index.html')
+            driftbase.auth.jwk._get_key_from_token(TEST_JWT, 'https://invalid.com/region/userpool/index.html')
             self.assertTrue(e.exception.msg.find('Failed to fetch') != -1)
 
     def test_fails_when_key_set_is_empty(self):
-        with mock.patch('driftbase.auth.cognito.jwt.PyJWKClient') as mock_jwk_client:
+        driftbase.auth.jwk._jwk_clients = {}
+        with mock.patch('driftbase.auth.jwk.jwt.PyJWKClient') as mock_jwk_client:
             instance = mock_jwk_client.return_value
             instance.fetch_data.return_value = json.loads('{}')
             instance.get_signing_key_from_jwt.return_value = None
             with self.assertRaises(UnauthorizedException) as e:
-                cognito._get_key_from_token(TEST_JWT, driftbase.auth.cognito.COGNITO_PUBLIC_KEYS_URL_TEMPLATE)
+                driftbase.auth.jwk._get_key_from_token(TEST_JWT, driftbase.auth.cognito.COGNITO_PUBLIC_KEYS_URL_TEMPLATE)
                 self.assertTrue(e.exception.msg.find('Failed to find') != -1)
 
     def test_fails_when_key_set_is_invalid(self):
+        driftbase.auth.jwk._jwk_clients = {}
         with mock.patch.object(cognito.jwt.PyJWKClient, 'fetch_data') as mock_fetch:
             mock_fetch.side_effect = json.decoder.JSONDecodeError('mock', '', 42)
             with self.assertRaises(ServiceUnavailableException) as e:
-                cognito._get_key_from_token(TEST_JWT, driftbase.auth.cognito.COGNITO_PUBLIC_KEYS_URL_TEMPLATE)
+                driftbase.auth.jwk._get_key_from_token(TEST_JWT, driftbase.auth.cognito.COGNITO_PUBLIC_KEYS_URL_TEMPLATE)
                 self.assertTrue(e.exception.msg.find('Failed to read') != -1)
 
 
