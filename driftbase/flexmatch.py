@@ -6,7 +6,7 @@ import re
 from collections import defaultdict
 from botocore.exceptions import ClientError, ParamValidationError
 from flask import g, url_for
-from drift.core.extensions.driftconfig import get_tenant_config_value
+from drift.core.extensions.driftconfig import get_tenant_config_value, get_feature_switch
 from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.messages import post_message
@@ -272,6 +272,10 @@ def handle_match_event(queue_name, event_data):
                                     "num_bans": ban_info.num_bans,
                                     "unban_date": ban_info.get_unban_date(),
                                     "expiry_date": ban_info.get_expiry_date()})
+
+
+def bans_enabled():
+    return get_feature_switch('enable_bans')
 
 def get_player_ban_info(player_id: int, matchmaker: str, banned_only: bool = True) -> dict | None:
     with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
