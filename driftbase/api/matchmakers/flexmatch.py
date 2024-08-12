@@ -132,22 +132,23 @@ class FlexMatchTicketsAPI(MethodView):
         player_id = current_user.get("player_id")
         matchmaker = args.get("matchmaker")
 
-        # Cannot start matchmaking if player is banned.
-        info = flexmatch.get_player_ban_info(player_id, matchmaker)
-        if info:
-            unban_date = info["unban_date"]
-            log.info(f"Cannot start matchmaking for banned player {player_id}. Expires at: {unban_date}")
-            return abort(http_client.FORBIDDEN, description=f"type=unban_date date={unban_date.isoformat()}")
+        if flexmatch.bans_enabled():
+            # Cannot start matchmaking if player is banned.
+            info = flexmatch.get_player_ban_info(player_id, matchmaker)
+            if info:
+                unban_date = info["unban_date"]
+                log.info(f"Cannot start matchmaking for banned player {player_id}. Expires at: {unban_date}")
+                return abort(http_client.FORBIDDEN, description=f"type=unban_date date={unban_date.isoformat()}")
 
-        # Cannot start matchmaking if any player member is banned.
-        party_id, party_members = flexmatch.get_player_party_and_members(player_id)
-        if party_id:
-            for member_id, member_name in party_members:
-                info = flexmatch.get_player_ban_info(member_id, matchmaker)
-                if info:
-                    unban_date = info["unban_date"]
-                    log.info(f"Cannot start matchmaking for banned player {member_id} in party {party_id}. Expires at: {unban_date}")
-                    return abort(http_client.FORBIDDEN, description=f"type=unban_date date={unban_date.isoformat()} party_member={member_name}")
+            # Cannot start matchmaking if any player member is banned.
+            party_id, party_members = flexmatch.get_player_party_and_members(player_id)
+            if party_id:
+                for member_id, member_name in party_members:
+                    info = flexmatch.get_player_ban_info(member_id, matchmaker)
+                    if info:
+                        unban_date = info["unban_date"]
+                        log.info(f"Cannot start matchmaking for banned player {member_id} in party {party_id}. Expires at: {unban_date}")
+                        return abort(http_client.FORBIDDEN, description=f"type=unban_date date={unban_date.isoformat()} party_member={member_name}")
 
         try:
             ticket = flexmatch.upsert_flexmatch_ticket(player_id, matchmaker, args.get("extras", {}))

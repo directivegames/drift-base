@@ -8,6 +8,7 @@ from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
 from driftbase import flexmatch
 from driftbase.resources.flexmatch import FLEXMATCH_DEFAULTS
+from drift.core.extensions.driftconfig import get_feature_switch
 from datetime import datetime, date, timezone, timedelta
 import uuid
 import json
@@ -390,6 +391,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
             stack.enter_context(patch.object(flexmatch, "BanInfo", MockBanInfo))
             stack.enter_context(patch.object(flexmatch, "_get_flexmatch_config_value", lambda config_key: config[config_key]))
             stack.enter_context(patch.object(flexmatch, 'GameLiftRegionClient', MockGameLiftClient))
+            stack.enter_context(patch.object(flexmatch, 'bans_enabled', return_value=True))
 
             def _on_match_ban_event(match_type, match_id, player_id = self.player_id):
                 event_data = {"event": "match_player_banned", "match_id": match_id, "match_type": match_type, "player_id": player_id}
