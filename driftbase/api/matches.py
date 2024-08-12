@@ -309,9 +309,9 @@ class MatchesAPI(MethodView):
                     match_players = []
                     for player_row in players_result:
                         if is_service:
-                            [match_player, core_player] = player_row
+                            [match_player, player_name] = player_row
                             player_record = match_player.as_dict()
-                            player_record["player_name"] = core_player.player_name if core_player else ""
+                            player_record["player_name"] = player_name or ""
                         else:
                             player_record = player_row._asdict()
                             player_record["player_name"] = player_record["player_name"] or ""
