@@ -90,7 +90,6 @@ class MatchesTest(BaseMatchTest):
         self.assertIn("players", match)
         self.assertIn("teams", match)
 
-
     def test_create_match(self):
         self.auth_service()
         match = self._create_match()

@@ -7,7 +7,6 @@ from driftbase.systesthelper import DriftBaseTestCase
 
 
 class BaseCloudkitTest(DriftBaseTestCase):
-
     def make_player(self, username=None):
         username = username or uuid_string()
         self.auth(username=username)

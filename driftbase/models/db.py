@@ -20,13 +20,11 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.schema import Sequence, Index
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from flask import g
 from driftbase.config import get_client_heartbeat_config
-
 
 def utcnow():
     return datetime.datetime.utcnow()
-
 
 class User(ModelBase):
     __tablename__ = "ck_users"
@@ -114,7 +112,35 @@ class UserIdentity(ModelBase):
 
 tbl_user_identity = UserIdentity.__table__
 
+class PlayerRichPresence:
+    """
+    Rich presence information for a particular user.
+    @see PlayerRichPresenceSchema
+    """
+    
+    game_mode = ""
+    map_name = ""
+    is_online = False
+    is_in_game = False
 
+    def __init__(self, player_id: int, is_online: bool):
+        self.is_online = is_online
+
+        try:
+            match_player : MatchPlayer = g.db.query(MatchPlayer) \
+                .filter(MatchPlayer.player_id == player_id) \
+                .one()
+            
+            match : Match = g.db.query(Match) \
+                .filter(Match.match_id == match_player.match_id) \
+                .one()
+
+            self.is_in_game = match_player.status == "active" # Always true?
+            self.game_mode = match.game_mode
+            self.map_name = match.map_name
+        except Exception: # Expected NoResultFound if a player isn't in a match.
+            pass
+ 
 class CorePlayer(ModelBase):
     __tablename__ = "ck_players"
 
@@ -143,11 +169,18 @@ class CorePlayer(ModelBase):
 
     @hybrid_property
     def is_online(self):
+        """
+        Deprecated. Use rich_presence.is_online instead.
+        """
         if self.user and self.user.client:
             return self.user.client.is_online
         return False
 
+    @hybrid_property
+    def rich_presence(self) -> PlayerRichPresence:
+        return PlayerRichPresence(self.player_id, self.is_online)
 
+        
 class Client(ModelBase):
     __tablename__ = "ck_clients"
 
@@ -356,8 +389,10 @@ class Match(ModelBase):
     status_date = Column(DateTime, nullable=True)
     unique_key = Column(String(50), nullable=True)
 
-
 class MatchPlayer(ModelBase):
+    """
+    The match that a player is currently in
+    """
     __tablename__ = "gs_matchplayers"
 
     id = Column(Integer, primary_key=True)
@@ -371,7 +406,6 @@ class MatchPlayer(ModelBase):
     seconds = Column(Integer, nullable=False, default=0)
     statistics = Column(JSON, nullable=True)
     details = Column(JSON, nullable=True)
-
 
 class MatchTeam(ModelBase):
     __tablename__ = "gs_matchteams"

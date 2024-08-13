@@ -50,6 +50,44 @@ class PlayersTest(BaseCloudkitTest):
         self.assertTrue(p1_info["is_online"])
         self.assertTrue(p2_info["is_online"])
 
+    def _get_player_rich_presence(self):
+        self.auth()
+        return self.get(self.endpoints["my_player"]).json()["rich_presence"]
+
+    def test_rich_presence(self):
+        """
+        Tests whether the players active presence information is correct.
+        """
+        # Assert that an offline player has expected rich presence
+        self.auth()
+
+        player_id = self.player_id
+        presence = self._get_player_rich_presence()
+        self.assertFalse(presence["is_online"])
+        self.assertFalse(presence["is_in_game"])
+
+        # Assert that an online player has expected rich presence
+        self.auth_service()
+        match = self._create_match()
+        match_url = match["url"]
+        teams_url = match["teams_url"]
+        resp = self.get(match_url).json()
+
+        matchplayers_url = resp["matchplayers_url"]
+
+        resp = self.post(teams_url, data={}, expected_status_code=http_client.CREATED).json()
+        team_id = resp["team_id"]
+        resp = self.get(teams_url).json()
+
+        data = {"player_id": player_id, "team_id": team_id}
+        resp = self.post(matchplayers_url, data=data, expected_status_code=http_client.CREATED).json()
+        
+        presence = self._get_player_rich_presence()
+        self.assertEqual(presence["is_online"], self.get(self.endpoints["my_player"]).json()["is_online"])
+        self.assertTrue(presence["is_in_game"])
+        self.assertNotEqual(presence["game_mode"], "") # Test matches have dummy data for these fields (see _create_match)
+        self.assertNotEqual(presence["map_name"], "")
+
     def _get_players_by_id(self, p1, p2):
         r = self.get(self.endpoints["players"] + "?player_id=%d&player_id=%d" % (p1, p2)).json()
         p1_info = [i for i in r if i["player_id"] == p1][0]

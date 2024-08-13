@@ -75,3 +75,7 @@ celerybeat-schedule
 .driftconfig-developer
 
 .python-version
+
+# Common Virtual Env Names
+venv
+.venv
