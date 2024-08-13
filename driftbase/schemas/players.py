@@ -4,12 +4,6 @@ from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from driftbase.models.db import CorePlayer
 from flask import url_for
 
-class PlayerRichPresenceSchema(Schema):
-    game_mode = fields.Str()
-    map_name = fields.Str()
-    is_online = fields.Bool()
-    is_in_game = fields.Bool()
-
 class PlayerSchema(SQLAlchemyAutoSchema):
     class Meta:
         strict = True
@@ -20,7 +14,6 @@ class PlayerSchema(SQLAlchemyAutoSchema):
         include_relationships = True
 
     is_online = fields.Boolean()
-    rich_presence = fields.Nested(PlayerRichPresenceSchema())
 
     player_url = AbsoluteURLFor(
         'players.entry',
