@@ -10,6 +10,8 @@ from drift.blueprint import Blueprint, abort
 
 from drift.core.extensions.jwt import current_user, requires_roles
 from drift.core.extensions.urlregistry import Endpoints
+from sqlalchemy import func
+
 from driftbase.matchqueue import process_match_queue
 from driftbase.models.db import Machine, Server, Match, MatchTeam, MatchPlayer, MatchQueuePlayer, CorePlayer
 from driftbase.utils import log_match_event
@@ -193,6 +195,7 @@ class MatchesAPI(MethodView):
         map_name = ma.fields.String()
         statistics_filter = ma.fields.String()
         details_filter = ma.fields.String()
+        start_date = ma.fields.Date()
 
     @bp.arguments(MatchesAPIGetQuerySchema, location='query')
     def get(self, args):
@@ -214,6 +217,7 @@ class MatchesAPI(MethodView):
             map_name = args.get("map_name")
             statistics_filter = args.get("statistics_filter")
             details_filter = args.get("details_filter")
+            start_date = args.get("start_date")
 
             if statistics_filter:
                 try:
@@ -261,6 +265,9 @@ class MatchesAPI(MethodView):
             if details_filter:
                 for key, value in details_filter.items():
                     matches_query = matches_query.filter(Match.details[key].astext == value)
+
+            if start_date:
+                matches_query = matches_query.filter(func.date(Match.start_date) == start_date)
 
             matches_query = matches_query.order_by(-Match.match_id)
 
