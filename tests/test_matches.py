@@ -1,3 +1,4 @@
+import datetime
 from collections import defaultdict
 
 import http.client as http_client
@@ -90,6 +91,24 @@ class MatchesTest(BaseMatchTest):
         self.assertIn("players", match)
         self.assertIn("teams", match)
 
+        # Get matches from date
+        resp = self.get("/matches", params={"use_pagination": True, "start_date": datetime.date.today().isoformat()})
+        resp_json = resp.json()
+
+        for m in resp_json["items"]:
+            self.assertEqual(datetime.datetime.fromisoformat(m["start_date"]).date(), datetime.date.today())
+
+        resp = self.get("/matches", params={"use_pagination": True,
+                                            "start_date": (datetime.date.today() - datetime.timedelta(1)).isoformat()})
+        resp_json = resp.json()
+
+        assert len(resp_json["items"]) == 0
+
+        resp = self.get("/matches", params={"use_pagination": True,
+                                            "start_date": (datetime.date.today() + datetime.timedelta(1)).isoformat()})
+        resp_json = resp.json()
+
+        assert len(resp_json["items"]) == 0
 
     def test_create_match(self):
         self.auth_service()
