@@ -15,7 +15,6 @@ from driftbase.api.players import (
     gamestate,
     journal,
     playergroups,
-    richpresence,
     summary,
     tickets,
 )
@@ -78,7 +77,6 @@ def drift_init_extension(app, **kwargs):
     app.register_blueprint(gamestate.bp)
     app.register_blueprint(journal.bp)
     app.register_blueprint(playergroups.bp)
-    app.register_blueprint(richpresence.bp)
     app.register_blueprint(summary.bp)
     app.register_blueprint(tickets.bp)
     endpoints.init_app(app)
@@ -237,14 +235,6 @@ def endpoint_info(current_user):
         "my_summary": None,
         "template_player_gamestate": template_player_gamestate_url
     }
-
-    url = url_for(
-        "richpresence.entry",
-        player_id=1337,
-        _external=True,
-    )
-    url = url.replace('1337', '{player_id}')
-    ret["template_richpresence"] = url
     
     if current_user:
         player_id = current_user["player_id"]

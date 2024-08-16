@@ -13,6 +13,10 @@ bp = Blueprint("richpresence", __name__, url_prefix="/players/<int:player_id>")
 endpoints = Endpoints()
 log = logging.getLogger(__name__)
 
+def drift_init_extension(app, **kwargs):
+    app.register_blueprint(bp)
+    endpoints.init_app(app)
+    
 class RichPresenceRequestSchema(Schema):
     name = fields.List(fields.String())
 
@@ -67,3 +71,15 @@ class RichPresenceAPI(MethodView):
         """
                 
         return PlayerRichPresence(player_id)
+    
+@endpoints.register
+def endpoint_info(*args):
+    url = url_for(
+        "richpresence.entry",
+        player_id=1337,
+        _external=True,
+    ).replace('1337', '{player_id}')
+
+    return {
+        "template_richpresence": url
+    }

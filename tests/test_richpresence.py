@@ -11,6 +11,10 @@ class PlayersTest(BaseCloudkitTest):
         url = self.endpoints['template_richpresence'].replace("{player_id}", str(player_id))
         return self.get(url).json()
 
+    def test_nothing(self):
+        self.auth()
+        self.assertTrue(True)
+        
     def test_rich_presence(self):
         """
         Tests whether the players active presence information is correct.
