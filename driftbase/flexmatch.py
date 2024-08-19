@@ -6,6 +6,7 @@ import re
 from collections import defaultdict
 from botocore.exceptions import ClientError, ParamValidationError
 from flask import g, url_for
+from driftbase.flask.flaskproxy import g
 from drift.core.extensions.driftconfig import get_tenant_config_value
 from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members

@@ -210,7 +210,16 @@ class MessageQueueAPI(MethodView):
 
 @endpoints.register
 def endpoint_info(*args):
-    return {
+    # TODO: This way of building templated URLs is very repetitive. I'm positive we can wrap this.
+    url = url_for("messages.message", exchange_id=1337, exchange="exchange", queue="queue", message_id="message_id", _external=True)
+    url = url.replace("exchange", "{exchange}")
+    url = url.replace("queue", "{queue}")
+    url = url.replace("message_id", "{message_id}")
+    url = url.replace("1337", "{exchange_id}")
+
+    ret = {
+        "template_get_message": url,
         "my_messages": url_for("messages.exchange", exchange="players", exchange_id=current_user["player_id"],
                                _external=True) if current_user else None
     }
+    return ret

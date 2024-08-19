@@ -1,77 +1,60 @@
+"""
+Rich Presence is player metadata which is relevant to others, such as a players online status. Rich presence
+can be queried from this extension, or you can listen to the message queue to get live updates without polling.
+
+Messages will be available under 'players/<id>/richpresence/', and are automatically scoped to your friends list.
+"""
+
 from flask.views import MethodView
 from marshmallow import Schema, fields
-from drift.blueprint import Blueprint, abort
+from drift.blueprint import Blueprint
 import http.client as http_client
 from driftbase.models.db import Match, MatchPlayer, Client
-from sqlalchemy.exc import NoResultFound
+from driftbase.richpresence import RichPresenceSchema, PlayerRichPresence, get_richpresence
 from drift.core.extensions.urlregistry import Endpoints
-from flask import g, url_for
-import logging
+from flask import url_for
+from driftbase.flask.flaskproxy import g
 
-
-bp = Blueprint("richpresence", __name__, url_prefix="/players/<int:player_id>")
+bp = Blueprint("richpresence", __name__, url_prefix="/rich-presence/")
 endpoints = Endpoints()
-log = logging.getLogger(__name__)
 
 def drift_init_extension(app, **kwargs):
     app.register_blueprint(bp)
     endpoints.init_app(app)
-    
+
 class RichPresenceRequestSchema(Schema):
     name = fields.List(fields.String())
 
-class RichPresenceResponseSchema(Schema):
-    game_mode = fields.Str()
-    map_name = fields.Str()
-    is_online = fields.Bool()
-    is_in_game = fields.Bool()
+class RichPresenceListArgs(Schema):
+    class Meta:
+        strict = True
 
-class PlayerRichPresence:
-    """
-    Rich presence information for a particular player.
-    @see PlayerRichPresenceSchema
-    """
-    
-    game_mode = ""
-    map_name = ""
-    is_online = False
-    is_in_game = False
+    player_id = fields.List(
+        fields.Integer(), metadata=dict(description="Player ID's to filter for"
+    ))
 
-    def __init__(self, player_id: int):
-        client : Client|None = g.db.query(MatchPlayer) \
-            .filter(Client.player_id == player_id) \
-            .first()
-        
-        self.is_online = client.is_online if client else False
-                    
-        match_player : MatchPlayer|None = g.db.query(MatchPlayer) \
-            .filter(MatchPlayer.player_id == player_id) \
-            .first()
-        
-        if not match_player: return
-        
-        match : Match|None = g.db.query(Match) \
-            .filter(Match.match_id == match_player.match_id) \
-            .one()
-
-        if not match: return
-
-        self.is_in_game = match_player.status == "active"
-        self.game_mode = match.game_mode
-        self.map_name = match.map_name
-    
-@bp.route('/rich-presence', endpoint='entry')
+@bp.route('/<int:player_id>', endpoint='entry')
 class RichPresenceAPI(MethodView):
-    @bp.response(http_client.OK, RichPresenceResponseSchema)
+    @bp.response(http_client.OK, RichPresenceSchema)
     def get(self, player_id : int):
         """
         Single Player
 
         Retrieve rich-presence information for a specific player
         """
-                
-        return PlayerRichPresence(player_id)
+
+        return get_richpresence(player_id)
     
+# @bp.route('/', endpoint = 'list')
+# class RichPresenceListAPI(MethodView):
+#     @bp.arguments(RichPresenceListArgs, location='query')
+#     @bp.response(http_client.OK, RichPresenceSchema(many=True))
+#     def get(self, args : RichPresenceListArgs):
+#         # TODO:
+
+#         return []
+
+
 @endpoints.register
 def endpoint_info(*args):
     url = url_for(
@@ -81,5 +64,6 @@ def endpoint_info(*args):
     ).replace('1337', '{player_id}')
 
     return {
-        "template_richpresence": url
+        "template_richpresence": url,
+        # "richpresence": url_for("richpresence.list")
     }
