@@ -16,7 +16,7 @@ docker run --rm -ti --network backend --env-file $DIR/local.env \
   --mount "type=bind,source=$CONFIG_STORE,target=$CONFIG_STORE" \
   --mount "type=bind,source=$CONFIG_ORIGIN,target=$CONFIG_ORIGIN" \
   --entrypoint /bin/bash \
-  app_drift-base:latest \
+  app-drift-base:latest \
   -c "driftconfig provision-tenant $TENANT $DEPLOYABLE"
 driftconfig cache $CONFIG
 
