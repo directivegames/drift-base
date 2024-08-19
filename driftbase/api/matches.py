@@ -10,7 +10,7 @@ from drift.blueprint import Blueprint, abort
 
 from drift.core.extensions.jwt import current_user, requires_roles
 from drift.core.extensions.urlregistry import Endpoints
-from sqlalchemy import func
+from sqlalchemy import func, cast, Integer, case
 
 from driftbase.matchqueue import process_match_queue
 from driftbase.models.db import Machine, Server, Match, MatchTeam, MatchPlayer, MatchQueuePlayer, CorePlayer
@@ -247,7 +247,21 @@ class MatchesAPI(MethodView):
                 )
 
             if player_id:
-                matches_query = matches_query.join(MatchPlayer, Match.match_id == MatchPlayer.match_id).filter(MatchPlayer.player_id == player_id)
+                matches_query = matches_query.join(
+                    MatchPlayer, Match.match_id == MatchPlayer.match_id
+                ).filter(
+                    MatchPlayer.player_id == player_id
+                )
+                matches_query = matches_query.join(
+                    MatchTeam, MatchPlayer.team_id == MatchTeam.team_id
+                ).filter(
+                    MatchTeam.match_id == Match.match_id
+                )
+                is_winner = case(
+                    [(cast(Match.match_statistics['winning_team_id'].astext, Integer) == MatchTeam.team_id, True)],
+                    else_=False
+                ).label("is_winner")
+                matches_query.add_columns(is_winner)
 
             if server_id:
                 matches_query = matches_query.filter(Match.server_id == server_id)
