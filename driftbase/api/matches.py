@@ -816,11 +816,7 @@ class MatchPlayersAPI(MethodView):
                                        status="active")
             g.db.add(match_player)
         
-        richpresence.set_richpresence(player_id, richpresence.PlayerRichPresence(
-            map_name = match.map_name,
-            game_mode = match.game_mode,
-            # TODO: Is online and such!
-        ))
+        richpresence.set_match_status(player_id, match.map_name, match.game_mode)
 
         match_player.num_joins += 1
         match_player.join_date = utcnow()
@@ -953,11 +949,7 @@ class MatchPlayerAPI(MethodView):
 
         match_player.status = "quit"
 
-        # TODO Liam
-        richpresence.set_richpresence(player_id, richpresence.PlayerRichPresence(
-            map_name="",
-            game_mode=""
-        ))
+        richpresence.clear_match_status(player_id)
 
         num_seconds = (utcnow() - match_player.join_date).total_seconds()
         match_player.leave_date = utcnow()

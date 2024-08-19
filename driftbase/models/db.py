@@ -20,7 +20,6 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.schema import Sequence, Index
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import g
 from driftbase.config import get_client_heartbeat_config
 
 def utcnow():
@@ -111,7 +110,8 @@ class UserIdentity(ModelBase):
 
 
 tbl_user_identity = UserIdentity.__table__
- 
+
+
 class CorePlayer(ModelBase):
     __tablename__ = "ck_players"
 
@@ -147,7 +147,7 @@ class CorePlayer(ModelBase):
             return self.user.client.is_online
         return False
 
-        
+
 class Client(ModelBase):
     __tablename__ = "ck_clients"
 

@@ -233,9 +233,8 @@ def endpoint_info(current_user):
         "my_gamestates": None,
         "my_player_groups": None,
         "my_summary": None,
-        "template_player_gamestate": template_player_gamestate_url
+        "template_player_gamestate": template_player_gamestate_url,
     }
-    
     if current_user:
         player_id = current_user["player_id"]
         ret["my_player"] = url_player(player_id)

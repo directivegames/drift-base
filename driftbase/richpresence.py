@@ -1,3 +1,4 @@
+from __future__ import annotations
 from driftbase.flask.flaskproxy import g
 from marshmallow import Schema, fields
 from marshmallow.decorators import post_load
@@ -26,34 +27,6 @@ class PlayerRichPresence:
             return self.__dict__ == other.__dict__
         else:
             return False
-
-    # @staticmethod
-    # def create_from_player(player_id : int):
-    #     presence = PlayerRichPresence()
-
-    #     client : Client|None = g.db.query(MatchPlayer) \
-    #         .filter(Client.player_id == player_id) \
-    #         .first()
-        
-    #     presence.is_online = client.is_online if client else False
-                    
-    #     match_player : MatchPlayer|None = g.db.query(MatchPlayer) \
-    #         .filter(MatchPlayer.player_id == player_id) \
-    #         .first()
-        
-    #     if not match_player: return
-        
-    #     match : Match|None = g.db.query(Match) \
-    #         .filter(Match.match_id == match_player.match_id) \
-    #         .one()
-
-    #     if not match: return
-
-    #     presence.is_in_game = match_player.status == "active"
-    #     presence.game_mode = match.game_mode
-    #     presence.map_name = match.map_name
-
-    #     return presence
     
 class RichPresenceSchema(Schema):
     game_mode = fields.Str()
@@ -64,9 +37,6 @@ class RichPresenceSchema(Schema):
     @post_load
     def make_rich_presence(self, data, **kwargs):
         return PlayerRichPresence(**data)
-    
-    # TODO: Add player ID?
-
 
 def _get_friends(player_id) -> list[int]:
     """
@@ -95,12 +65,29 @@ def get_richpresence(player_id : int) -> PlayerRichPresence:
     else:
         return PlayerRichPresence()
 
-def set_player_online(player_id: int, is_online: bool) -> None:
-    pass # TODO
+def set_online_status(player_id: int, is_online: bool):
+    """
+    Sets the players online status, and updates rich-presence
+    """
+    presence = get_richpresence(player_id)
+    presence.is_online = is_online
+    set_richpresence(player_id, presence)
 
-def update_rich_presence(player_id: int, partial_presence : PlayerRichPresence):
-    # TODO: Add updating presence via partials
-    pass
+def set_match_status(player_id: int, map_name: str, game_mode: str, is_in_game : bool = True):
+    """
+    Sets the players match status, and updates rich-presence
+    """
+    presence = get_richpresence(player_id)
+    presence.is_in_game = is_in_game
+    presence.game_mode = game_mode
+    presence.map_name = map_name
+    set_richpresence(player_id, presence)
+
+def clear_match_status(player_id : int) -> None:
+    """
+    Returns a players match status back to the default values
+    """
+    set_match_status(player_id, "", "", False)
 
 def set_richpresence(player_id : int, presence : PlayerRichPresence) -> None:
     """
@@ -115,8 +102,6 @@ def set_richpresence(player_id : int, presence : PlayerRichPresence) -> None:
 
     if original_presence != presence_json:
         for receiver_id in _get_friends(player_id):
-            # TODO: Optimize this to send just a 'patch' instead of full presence
-            # TODO: What does 'sender_system' do?
             post_message("players", int(receiver_id), "richpresence", presence_json, sender_system=True)
     
     g.redis.set(key, presence_json)

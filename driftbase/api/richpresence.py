@@ -1,19 +1,19 @@
 """
 Rich Presence is player metadata which is relevant to others, such as a players online status. Rich presence
 can be queried from this extension, or you can listen to the message queue to get live updates without polling.
-
-Messages will be available under 'players/<id>/richpresence/', and are automatically scoped to your friends list.
 """
 
 from flask.views import MethodView
+from driftbase.flask.flaskproxy import g
+from driftbase.models.db import CorePlayer
 from marshmallow import Schema, fields
 from drift.blueprint import Blueprint
 import http.client as http_client
-from driftbase.models.db import Match, MatchPlayer, Client
-from driftbase.richpresence import RichPresenceSchema, PlayerRichPresence, get_richpresence
+from driftbase.richpresence import RichPresenceSchema, get_richpresence
 from drift.core.extensions.urlregistry import Endpoints
 from flask import url_for
-from driftbase.flask.flaskproxy import g
+from webargs.flaskparser import abort
+
 
 bp = Blueprint("richpresence", __name__, url_prefix="/rich-presence/")
 endpoints = Endpoints()
@@ -42,17 +42,16 @@ class RichPresenceAPI(MethodView):
 
         Retrieve rich-presence information for a specific player
         """
+        
+        player = g.db.query(CorePlayer).get(player_id)
+        if not player:
+            abort(http_client.NOT_FOUND)
 
-        return get_richpresence(player_id)
-    
-# @bp.route('/', endpoint = 'list')
-# class RichPresenceListAPI(MethodView):
-#     @bp.arguments(RichPresenceListArgs, location='query')
-#     @bp.response(http_client.OK, RichPresenceSchema(many=True))
-#     def get(self, args : RichPresenceListArgs):
-#         # TODO:
+        try:
+            return get_richpresence(player_id)
+        except Exception:
+            abort(http_client.INTERNAL_SERVER_ERROR)
 
-#         return []
 
 
 @endpoints.register
@@ -64,6 +63,5 @@ def endpoint_info(*args):
     ).replace('1337', '{player_id}')
 
     return {
-        "template_richpresence": url,
-        # "richpresence": url_for("richpresence.list")
+        "template_richpresence": url
     }
