@@ -177,6 +177,9 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
     player_name = ""
     if my_identity.user_id:
         my_user = g.db.query(User).get(my_identity.user_id)
+        if my_user.status == "banned":
+            log.info(f"Logon identity is using a banned user {my_user.user_id}")
+            abort_unauthorized("User is banned")
         if my_user.status != "active":
             log.info(f"Logon identity is using an inactive user {my_user.user_id}, creating new one")
             my_user = None
