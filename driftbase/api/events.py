@@ -2,6 +2,7 @@ import gzip
 import http.client as http_client
 import json
 import logging
+from collections import defaultdict
 from json import JSONDecodeError
 
 from flask import request, url_for, jsonify, current_app
@@ -74,11 +75,24 @@ class EventsAPI(MethodView):
             eventlogger.info("eventlog", extra={"extra": event})
 
         if get_feature_switch('enable_eventlog_shoutout_forwarding') and is_service:
-            events_to_shoutout = [event for event in events if not event.get('event_name', '').startswith('drift.')]
-            if events_to_shoutout:
-                shoutout = current_app.extensions.get('shoutout').message
-                for event in events_to_shoutout:
-                    shoutout("eventlog:events", events=[event], pkey=event.get("player_id") or 0)
+            events_to_shoutout = defaultdict(list)
+            for event in [e for e in events if not e.get('event_name', '').startswith('drift.')]:
+                events_to_shoutout[event.get('player_id')].append(event)
+            shoutout = current_app.extensions.get('shoutout').message
+            batch_size = get_tenant_config_value('eventlog', 'max_batch_size',
+                                                 defaults=dict(eventlog=dict(max_batch_size=5)))
+            for player_id, events_to_shoutout in events_to_shoutout.items():
+                if not batch_size:
+                    data = {"events": events_to_shoutout}
+                    if player_id is not None:
+                        data["pkey"] = player_id
+                    shoutout("eventlog:events", **data)
+                else:
+                    for i in range(0, len(events_to_shoutout), batch_size):
+                        data = {"events": events_to_shoutout[i: i + batch_size]}
+                        if player_id is not None:
+                            data["pkey"] = player_id
+                        shoutout("eventlog:events", **data)
 
         if request.headers.get("Accept") == "application/json":
             return jsonify(status="OK"), http_client.CREATED
