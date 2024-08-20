@@ -81,15 +81,16 @@ class EventsAPI(MethodView):
             shoutout = current_app.extensions.get('shoutout').message
             batch_size = get_tenant_config_value('eventlog', 'max_batch_size',
                                                  defaults=dict(eventlog=dict(max_batch_size=5)))
-            for player_id, events_to_shoutout in events_to_shoutout.items():
+            log.info(f"events: {events_to_shoutout}")
+            for player_id, events in events_to_shoutout.items():
                 if not batch_size:
-                    data = {"events": events_to_shoutout}
+                    data = {"events": events}
                     if player_id is not None:
                         data["pkey"] = player_id
                     shoutout("eventlog:events", **data)
                 else:
-                    for i in range(0, len(events_to_shoutout), batch_size):
-                        data = {"events": events_to_shoutout[i: i + batch_size]}
+                    for i in range(0, len(events), batch_size):
+                        data = {"events": events[i: i + batch_size]}
                         if player_id is not None:
                             data["pkey"] = player_id
                         shoutout("eventlog:events", **data)
