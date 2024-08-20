@@ -86,14 +86,12 @@ class EventsAPI(MethodView):
                     data = {"events": events}
                     if player_id is not None:
                         data["pkey"] = player_id
-                    log.info(f"Forwarding all events to shoutout: {data}")
                     shoutout("eventlog:events", **data)
                 else:
                     for i in range(0, len(events), batch_size):
                         data = {"events": events[i: i + batch_size]}
                         if player_id is not None:
                             data["pkey"] = player_id
-                        log.info(f"Forwarding events in batches to shoutout: {data}")
                         shoutout("eventlog:events", **data)
 
         if request.headers.get("Accept") == "application/json":
