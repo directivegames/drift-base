@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import prometheus_client
 from drift.core.resources.postgres import connect
@@ -8,7 +8,7 @@ from driftconfig.util import get_drift_config
 from prometheus_client import make_wsgi_app
 from prometheus_client.metrics_core import GaugeMetricFamily
 from prometheus_client.registry import Collector
-from sqlalchemy import select
+from sqlalchemy import select, distinct, cast, Date
 from sqlalchemy.sql.functions import count
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
@@ -53,6 +53,11 @@ class MetricsCollector(Collector):
         yield self._make_users_gauge()
         yield self._make_clients_gauge()
         yield self._make_identities_gauge()
+        yield self._make_daily_active_users_gauge()
+        yield self._make_weekly_active_users_gauge()
+        yield self._make_monthly_active_users_gauge()
+        yield self._make_rolling_weekly_active_users_gauge()
+        yield self._make_rolling_monthly_active_users_gauge()
 
     def collect(self):
         """
@@ -67,6 +72,12 @@ class MetricsCollector(Collector):
         users = self._make_users_gauge()
         clients = self._make_clients_gauge()
         identities = self._make_identities_gauge()
+        daily_active_users = self._make_daily_active_users_gauge()
+        weekly_active_users = self._make_weekly_active_users_gauge()
+        monthly_active_users = self._make_monthly_active_users_gauge()
+        rolling_daily_active_users = self._make_rolling_daily_active_users_gauge()
+        rolling_weekly_active_users = self._make_rolling_weekly_active_users_gauge()
+        rolling_monthly_active_users = self._make_rolling_monthly_active_users_gauge()
         for tenant in tenant_rows:
             postgres_config = tenant.get('postgres')
             if postgres_config:
@@ -78,6 +89,7 @@ class MetricsCollector(Collector):
                         select(count(tbl_user.c.user_id)).where(tbl_user.c.status == 'active')
                     ).scalar_one()
                 users.add_metric([tier_name, tenant['tenant_name'].replace('-', '_')], num_users)
+
                 with db_engine.begin() as conn:
                     num_clients = conn.execute(
                         select(count(tbl_client.c.client_id)).where(tbl_client.c.status == 'active').where(
@@ -85,6 +97,7 @@ class MetricsCollector(Collector):
                                 seconds=DEFAULT_CLIENT_HEARTBEAT_TIMEOUT_SECONDS))
                     ).scalar_one()
                 clients.add_metric([tier_name, tenant['tenant_name'].replace('-', '_')], num_clients)
+
                 with db_engine.begin() as conn:
                     identities_and_types = conn.execute(
                         select(tbl_user_identity.c.identity_type, count(tbl_user_identity.c.identity_type)).where(
@@ -93,9 +106,47 @@ class MetricsCollector(Collector):
                     ).all()
                 for entry in identities_and_types:
                     identities.add_metric([tier_name, tenant['tenant_name'], entry.identity_type], entry.count)
+
+                now = datetime.now(timezone.utc)
+
+                for period, gauge in {'day': daily_active_users, 'week': weekly_active_users,
+                                      'month': monthly_active_users}.items():
+                    days_since_period_start = now.weekday() if period == 'week' else now.day - 1 if period == 'month' else 0
+                    period_start = (now - timedelta(days=days_since_period_start)).date()
+                    with db_engine.begin() as conn:
+                        logins_and_types = conn.execute(
+                            select(tbl_user_identity.c.identity_type, count(distinct(tbl_user.c.user_id)))
+                            .join(tbl_user, tbl_user_identity.c.user_id == tbl_user.c.user_id)
+                            .where(tbl_user_identity.c.user_id.isnot(None))
+                            .where(cast(tbl_user_identity.c.logon_date, Date()) >= period_start)
+                            .group_by(tbl_user_identity.c.identity_type)
+                        ).all()
+                    for entry in logins_and_types:
+                        gauge.add_metric([tier_name, tenant['tenant_name'], entry.identity_type], entry.count)
+
+                for period, gauge in {1: rolling_daily_active_users, 7: rolling_weekly_active_users,
+                                      30: rolling_monthly_active_users}.items():
+                    period_start = now - timedelta(days=period)
+                    with db_engine.begin() as conn:
+                        logins_and_types = conn.execute(
+                            select(tbl_user_identity.c.identity_type, count(distinct(tbl_user.c.user_id)))
+                            .join(tbl_user, tbl_user_identity.c.user_id == tbl_user.c.user_id)
+                            .where(tbl_user_identity.c.user_id.isnot(None))
+                            .where(tbl_user_identity.c.logon_date >= period_start)
+                            .group_by(tbl_user_identity.c.identity_type)
+                        ).all()
+                    for entry in logins_and_types:
+                        gauge.add_metric([tier_name, tenant['tenant_name'], entry.identity_type], entry.count)
+
         yield users
         yield clients
         yield identities
+        yield daily_active_users
+        yield weekly_active_users
+        yield monthly_active_users
+        yield rolling_daily_active_users
+        yield rolling_weekly_active_users
+        yield rolling_monthly_active_users
 
     def _make_users_gauge(self):
         return GaugeMetricFamily(
@@ -115,6 +166,48 @@ class MetricsCollector(Collector):
         return GaugeMetricFamily(
             f"{self.metric_prefix}_identities",
             "Number of identities for a tenant attached to a user",
+            labels=["tier", "tenant", "identity_type"]
+        )
+
+    def _make_daily_active_users_gauge(self):
+        return GaugeMetricFamily(
+            f"{self.metric_prefix}_calendar_daily_active_users",
+            "Number of active users for a tenant by calendar day",
+            labels=["tier", "tenant", "identity_type"]
+        )
+
+    def _make_weekly_active_users_gauge(self):
+        return GaugeMetricFamily(
+            f"{self.metric_prefix}_calendar_weekly_active_users",
+            "Number of active users for a tenant by calendar week",
+            labels=["tier", "tenant", "identity_type"]
+        )
+
+    def _make_monthly_active_users_gauge(self):
+        return GaugeMetricFamily(
+            f"{self.metric_prefix}_calendar_monthly_active_users",
+            "Number of active users for a tenant by calendar month",
+            labels=["tier", "tenant", "identity_type"]
+        )
+
+    def _make_rolling_daily_active_users_gauge(self):
+        return GaugeMetricFamily(
+            f"{self.metric_prefix}_rolling_daily_active_users",
+            "Number of active users for a tenant rolling by 24 previous hours",
+            labels=["tier", "tenant", "identity_type"]
+        )
+
+    def _make_rolling_weekly_active_users_gauge(self):
+        return GaugeMetricFamily(
+            f"{self.metric_prefix}_rolling_weekly_active_users",
+            "Number of active users for a tenant rolling by 7 days",
+            labels=["tier", "tenant", "identity_type"]
+        )
+
+    def _make_rolling_monthly_active_users_gauge(self):
+        return GaugeMetricFamily(
+            f"{self.metric_prefix}_rolling_monthly_active_users",
+            "Number of active users for a tenant rolling by 30 days",
             labels=["tier", "tenant", "identity_type"]
         )
 
