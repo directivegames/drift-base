@@ -453,7 +453,18 @@ class FlexMatchTest(_BaseFlexmatchTest):
             self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
             self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)
 
-
+            # Test Bans Post API.
+            ban_args = {"player_ids": [self.player_id + 2], # player id increments everytime auth is called...
+                        "seconds": 1}
+            self.post(self.endpoints["flexmatch_bans"], data=ban_args, expected_status_code=http_client.FORBIDDEN)
+            self.auth_service() # Must have service role.
+            self.post(self.endpoints["flexmatch_bans"], data=ban_args, expected_status_code=http_client.CREATED)
+            self.auth()
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.FORBIDDEN)
+            self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.FORBIDDEN)
+            time.sleep(1)
+            self.post(endpoint, data={"matchmaker": "DG-Ranked"}, expected_status_code=http_client.CREATED)
+            self.post(endpoint, data={"matchmaker": "DG-QuickPlay"}, expected_status_code=http_client.CREATED)
 
     def test_delete_ticket_clears_cached_ticket_on_permanent_error(self):
         """ If a ticket isn't cancellable because it's completed, we should clear it ? """
