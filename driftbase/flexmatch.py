@@ -932,13 +932,16 @@ class BanInfo(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._lock is not None and self._lock.owned():
-            with self._redis.conn.pipeline() as pipe:
-                if self._modified is True and exc_type is None:
-                    pipe.delete(self._key)
-                    if self._value is not None:
-                        pipe.set(self._key, json.dumps(self._value, default=lambda obj: obj.isoformat()), ex=self._ttl)
-                pipe.execute()
-            self._lock.release()
+            try:
+                with self._redis.conn.pipeline() as pipe:
+                    if self._modified is True and exc_type is None:
+                        pipe.delete(self._key)
+                        if self._value is not None:
+                            pipe.set(self._key, json.dumps(self._value, default=lambda obj: obj.isoformat()), ex=self._ttl)
+                    pipe.execute()
+            finally:
+                if self._lock is not None:
+                    self._lock.release()
 
     def is_banned(self) -> bool:
         return self._value and (datetime.now(timezone.utc) < self.get_unban_date())
