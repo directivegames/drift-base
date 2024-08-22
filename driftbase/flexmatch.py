@@ -973,10 +973,13 @@ class BanInfo(object):
             log.error("BanInfo is readonly - ban_for_duration skipped.")
 
     def get_unban_date(self):
+        # Calculates the unban date from match bans.
         time_tiers = [seconds for seconds in self.config.get("ban_time_seconds", [0])]
-        ban_duration = time_tiers[max(0, min(self.num_bans - 1, len(time_tiers) - 1))] if self.num_bans > 0 else 0
+        num_match_bans = len(self._value.get("ban_match_ids", []))
+        ban_duration = time_tiers[max(0, min(num_match_bans - 1, len(time_tiers) - 1))] if num_match_bans > 0 else 0
         auto_unban_date = self.last_ban_date + timedelta(seconds=ban_duration)
 
+        # Returns the greater of auto unban date or custom_unban_date.
         custom_unban_date = self.custom_unban_date
         if custom_unban_date is not None:
             return custom_unban_date if custom_unban_date > auto_unban_date else auto_unban_date
