@@ -24,14 +24,18 @@
 # QueueEventAPI @ /matchmakers/flexmatch/queue-events/ - endpoint "queue-events"
 #   PUT exposed to AWS EventBridge to publish flexmatch queue events
 
+# BansAPI @ /matchmakers/flexmatch/bans/ - endpoint "flexmatch_bans"
+#   POST ban players for duration
+
 from drift.blueprint import Blueprint, abort
 from drift.core.extensions.urlregistry import Endpoints
 from drift.core.extensions.jwt import requires_roles
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 from flask.views import MethodView
 from flask import url_for, request, current_app
 from drift.core.extensions.jwt import current_user
 from driftbase import flexmatch
+from datetime import timedelta
 import http.client as http_client
 import logging
 
@@ -272,6 +276,33 @@ class FlexMatchQueueEventAPI(MethodView):
         return {}
 
 
+@bp.route("/bans/", endpoint="bans")
+class FlexMatchBansAPI(MethodView):
+    class BanArgs(Schema):
+        player_ids = fields.List(fields.Integer(), required=True, metadata=dict(description="The list of player ids to ban."))
+        days = fields.Integer(validate=validate.Range(min=0))
+        hours = fields.Integer(validate=validate.Range(min=0))
+        minutes = fields.Integer(validate=validate.Range(min=0))
+        seconds = fields.Integer(validate=validate.Range(min=0))
+
+    @requires_roles("service")
+    @bp.arguments(BanArgs)
+    @bp.response(http_client.CREATED)
+    def post(self, args):
+        """
+        Ban players for duration.
+        """
+        duration = timedelta(days=args.get("days", 0),
+                             hours=args.get("hours", 0),
+                             minutes=args.get("minutes", 0),
+                             seconds=args.get("seconds", 0))
+        if duration.total_seconds() == 0:
+            abort(http_client.BAD_REQUEST, description="Missing duration to ban.")
+
+        flexmatch.ban_players(args["player_ids"], duration)
+        return args
+
+
 @endpoints.register
 def endpoint_info(*args):
     from driftbase.api import matchmakers
@@ -282,6 +313,7 @@ def endpoint_info(*args):
         "flexmatch_queue": url_for("flexmatch.queue-events", _external=True),
         "flexmatch_tickets": url_for("flexmatch.tickets", _external=True),
         "flexmatch_regions": url_for("flexmatch.regions", _external=True),
+        "flexmatch_bans": url_for("flexmatch.bans", _external=True),
     }
     if current_user and current_user.get("player_id"):
         ret["my_flexmatch"] = url_for("flexmatch.matchmaker", player_id=current_user["player_id"], _external=True)

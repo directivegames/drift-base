@@ -11,8 +11,7 @@ from aws_assume_role_lib import assume_role
 from driftbase.parties import get_player_party, get_party_members
 from driftbase.messages import post_message
 from driftbase.models.db import CorePlayer
-from driftbase.utils.redis_utils import JsonLock
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 
 from driftbase.resources.flexmatch import FLEXMATCH_DEFAULTS
 
@@ -264,8 +263,8 @@ def handle_match_event(queue_name, event_data):
             player_id, match_id, match_type = event_data["player_id"], event_data["match_id"], event_data["match_type"]
             log.info(f"Player {player_id} in {match_type} match {match_id} banned.")
             with BanInfo(player_id=player_id, match_type=match_type) as ban_info:
-                ban_info.update_ban(match_id)
-                if ban_info.exists():
+                ban_info.ban_from_match(match_id)
+                if ban_info.is_valid():
                     log.info(f"Player {player_id} ban info updated: ",
                              extra={"matchmaker": ban_info.matchmaker,
                                     "match_type": match_type,
@@ -277,20 +276,48 @@ def handle_match_event(queue_name, event_data):
 def bans_enabled():
     return get_feature_switch('enable_bans')
 
+
 def get_player_ban_info(player_id: int, matchmaker: str, banned_only: bool = True) -> dict | None:
-    with BanInfo(player_id=player_id, matchmaker=matchmaker) as ban_info:
+    def to_result(info: BanInfo):
+        if banned_only:
+            if info.is_banned():
+                return {"unban_date": info.get_unban_date(),
+                        "num_bans": info.num_bans,
+                        "last_ban_date": info.last_ban_date}
+        elif info.is_valid():
+            return {"banned": info.is_banned(),
+                    "unban_date": info.get_unban_date(),
+                    "num_bans": info.num_bans,
+                    "last_ban_date": info.last_ban_date,
+                    "expiry_date": info.get_expiry_date()}
+        return None
+    # Full ban for all matchmakers.
+    with BanInfo(player_id=player_id, all=True, readonly=True) as ban_info:
         if banned_only:
             if ban_info.is_banned():
-                return {"unban_date": ban_info.get_unban_date(),
-                        "num_bans": ban_info.num_bans,
-                        "last_ban_date": ban_info.last_ban_date}
-        elif ban_info.exists():
-            return {"banned": ban_info.is_banned(),
-                    "unban_date": ban_info.get_unban_date(),
-                    "num_bans": ban_info.num_bans,
-                    "last_ban_date": ban_info.last_ban_date,
-                    "expiry_date": ban_info.get_expiry_date()}
+                return to_result(ban_info)
+        elif ban_info.is_valid():
+            return to_result(ban_info)
+    # Matchmaker specific ban.
+    with BanInfo(player_id=player_id, matchmaker=matchmaker, readonly=True) as ban_info:
+        if ban_info.is_valid():
+            return to_result(ban_info)
     return None
+
+
+def ban_players(player_ids: list[int], duration: timedelta):
+    log.info(f"Banning players from all matchmakers: ",
+             extra={"extra": {"player_ids": player_ids, "duration": str(duration)}})
+    for player_id in player_ids:
+        with BanInfo(player_id=player_id, all=True) as ban_info:
+            ban_info.ban_for_duration(duration)
+            if ban_info.is_valid():
+                log.info(f"Player {player_id} ban info updated: ",
+                         extra={"matchmaker": ban_info.matchmaker,
+                                "match_type": "",
+                                "num_bans": ban_info.num_bans,
+                                "unban_date": ban_info.get_unban_date(),
+                                "expiry_date": ban_info.get_expiry_date()})
 
 
 def process_flexmatch_event(flexmatch_event):
@@ -853,20 +880,39 @@ class TicketConflict(Exception):
         self.msg = user_message
         self.debugs = debug_info
 
+
 class BanInfo(object):
-    def __init__(self, player_id: int, matchmaker: str | None = None, match_type: str | None = None, ttl: int | None = None):
+    """
+    Data:
+        num_bans: integer incremented for every ban
+        last_ban_date: datetime of the latest ban
+        ban_match_ids: list of match id integers if banning using ban_from_match
+        custom_unban_date: datetime of the unban date if banning using ban_for_duration
+    """
+
+    @staticmethod
+    def make_key(player_id: int, matchmaker: str, all: bool) -> str:
+        if all:
+            return f"player:{player_id}:flexmatch-ban-all:"
+        return f"player:{player_id}:flexmatch-ban:{matchmaker}:"
+
+    def __init__(self, player_id: int, matchmaker: str | None = None, match_type: str | None = None, all: bool = False, readonly: bool = False):
         self._modified = False
         self._value = None
-        self.matchmaker, self.config = self.find_config(matchmaker, match_type)
-        key = f"player:{player_id}:flexmatch-ban:{self.matchmaker}:"
+
+        self.readonly = readonly
+        self.matchmaker, config = self._find_config(matchmaker, match_type)
+        key = BanInfo.make_key(player_id, self.matchmaker, all)
+
         self._redis = self.get_redis()
         self._key = self._redis.make_key(key) if self._redis else key
-        self._lock = self._redis.conn.lock(self._key + "LOCK", timeout=30) if self._redis else None
-        self._ttl = ttl or self.config.get("expiry_seconds", 60 * 60)
+        self._lock = self._redis.conn.lock(self._key + "LOCK", timeout=30) if (self._redis and not readonly) else None
+        self._ttl = config.get("expiry_seconds", 60 * 60)
 
     def __enter__(self):
-        self._lock.acquire(blocking=True)
-        value = g.redis.conn.get(self._key)
+        if self._lock:
+            self._lock.acquire(blocking=True)
+        value = self._redis.conn.get(self._key)
         if value is not None:
             try:
                 self._value = json.loads(value)
@@ -880,37 +926,71 @@ class BanInfo(object):
             last_ban_date = self._value.get("last_ban_date")
             if isinstance(last_ban_date, str):
                 self._value["last_ban_date"] = datetime.fromisoformat(last_ban_date)
+            custom_unban_date = self._value.get("custom_unban_date")
+            if isinstance(custom_unban_date, str):
+                self._value["custom_unban_date"] = datetime.fromisoformat(custom_unban_date)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._lock.owned():
-            with g.redis.conn.pipeline() as pipe:
-                if self._modified is True and exc_type is None:
-                    pipe.delete(self._key)
-                    if self._value is not None:
-                        pipe.set(self._key, json.dumps(self._value, default=lambda obj: obj.isoformat()), ex=self._ttl)
-                pipe.execute()
-            self._lock.release()
+        if self._lock is not None and self._lock.owned():
+            try:
+                with self._redis.conn.pipeline() as pipe:
+                    if self._modified is True and exc_type is None:
+                        pipe.delete(self._key)
+                        if self._value is not None:
+                            pipe.set(self._key, json.dumps(self._value, default=lambda obj: obj.isoformat()), ex=self._ttl)
+                    pipe.execute()
+            finally:
+                if self._lock is not None:
+                    self._lock.release()
 
     def is_banned(self) -> bool:
         return self._value and (datetime.now(timezone.utc) < self.get_unban_date())
 
-    def exists(self) -> bool:
+    def is_valid(self) -> bool:
         return self._value and (datetime.now(timezone.utc) < self.get_expiry_date())
-    def update_ban(self, match_id):
-        self._value = self._value or {}
-        ban_match_ids = self._value.get("ban_match_ids", [])
-        if match_id not in ban_match_ids:
-            ban_match_ids.append(match_id)
-            self._value |= {"num_bans": self.num_bans + 1, "last_ban_date": datetime.now(timezone.utc), "ban_match_ids": ban_match_ids}
-            self._modified = True
+
+    def ban_from_match(self, match_id):
+        if not self.readonly:
+            self._value = self._value or {}
+            ban_match_ids = self._value.get("ban_match_ids", [])
+            if match_id not in ban_match_ids:
+                ban_match_ids.append(match_id)
+                self._value |= {"num_bans": self.num_bans + 1,
+                                "last_ban_date": datetime.now(timezone.utc),
+                                "ban_match_ids": ban_match_ids}
+                self._modified = True
+        else:
+            log.error("BanInfo is readonly - ban_from_match skipped.")
+
+    def ban_for_duration(self, ban_duration: timedelta):
+        if not self.readonly:
+            if isinstance(ban_duration, timedelta):
+                self._ttl = int(ban_duration.total_seconds())
+                self._value = self._value or {}
+                custom_unban_date = datetime.now(timezone.utc) + ban_duration
+                self._value |= {"num_bans": self.num_bans + 1,
+                                "last_ban_date": datetime.now(timezone.utc),
+                                "custom_unban_date": custom_unban_date}
+                self._modified = True
+        else:
+            log.error("BanInfo is readonly - ban_for_duration skipped.")
 
     def get_unban_date(self):
+        # Calculates the unban date from match bans.
         time_tiers = [seconds for seconds in self.config.get("ban_time_seconds", [0])]
-        ban_duration = time_tiers[max(0, min(self.num_bans - 1, len(time_tiers) - 1))] if self.num_bans > 0 else 0
-        return self.last_ban_date + timedelta(seconds=ban_duration)
+        num_match_bans = len(self._value.get("ban_match_ids", []))
+        ban_duration = time_tiers[max(0, min(num_match_bans - 1, len(time_tiers) - 1))] if num_match_bans > 0 else 0
+        auto_unban_date = self.last_ban_date + timedelta(seconds=ban_duration)
+
+        # Returns the greater of auto unban date or custom_unban_date.
+        custom_unban_date = self.custom_unban_date
+        if custom_unban_date is not None:
+            return custom_unban_date if custom_unban_date > auto_unban_date else auto_unban_date
+        return auto_unban_date
 
     def get_expiry_date(self):
         return self.last_ban_date + timedelta(seconds=self._ttl)
+
     @property
     def num_bans(self):
         if datetime.now(timezone.utc) < self.get_expiry_date():
@@ -927,8 +1007,24 @@ class BanInfo(object):
                 last_ban_date = datetime.now(timezone.utc)
         return last_ban_date
 
+    @property
+    def custom_unban_date(self):
+        custom_unban_date = self._value.get("custom_unban_date")
+        if isinstance(custom_unban_date, datetime):
+            return custom_unban_date
+        elif isinstance(custom_unban_date, str):
+            try:
+                return datetime.fromisoformat(custom_unban_date)
+            except ValueError as e:
+                pass
+        return None
+
+    @property
+    def config(self):
+        return self._find_config(self.matchmaker, None)[1]
+
     @staticmethod
-    def find_config(matchmaker, match_type):
+    def _find_config(matchmaker, match_type):
         config = _get_flexmatch_config_value("matchmaker_ban_times")
         if isinstance(matchmaker, str):
             return next(((k, v) for k, v in config.items() if matchmaker.startswith(k)), ("", {}))
