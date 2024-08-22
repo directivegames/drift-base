@@ -291,12 +291,16 @@ class MatchesAPI(MethodView):
             matches = []
             for match_row in matches_result.items:
                 if isinstance(match_row, Row):
-                    match_record = match_row.Match.as_dict()
-                    if hasattr(match_row, 'is_winner'):
-                        match_record["is_winner"] = match_row.is_winner
+                    if hasattr(match_row, 'Match'):
+                        match_record = match_row.Match.as_dict()
+                        if hasattr(match_row, 'is_winner'):
+                            match_record["is_winner"] = match_row.is_winner
+                    else:
+                        match_record = match_row._asdict()
                 elif isinstance(match_row, Match):
                     match_record = match_row.as_dict()
                 else:
+                    # pre SQLAlchemy 1.4 this would happen
                     match_record = match_row._asdict()
 
                 match_id = match_record["match_id"]

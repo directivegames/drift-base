@@ -114,6 +114,18 @@ class MatchesTest(BaseMatchTest):
 
         assert len(resp_json["items"]) == 0
 
+        # Query as a player
+        self.make_player()
+        resp = self.get("/matches", params={"use_pagination": True, "include_match_players": True})
+        resp_json = resp.json()
+
+        match = resp_json["items"][0]
+        self.assertIn("url", match)
+        self.assertIn("matchplayers_url", match)
+        self.assertIn("teams_url", match)
+        self.assertIn("players", match)
+        self.assertIn("teams", match)
+
     def test_match_information(self):
         self.make_player()
         player_id_1 = self.player_id
