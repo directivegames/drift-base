@@ -882,6 +882,13 @@ class TicketConflict(Exception):
 
 
 class BanInfo(object):
+    """
+    Data:
+        num_bans: integer incremented for every ban
+        last_ban_date: datetime of the latest ban
+        ban_match_ids: list of match id integers if banning using ban_from_match
+        custom_unban_date: datetime of the unban date if banning using ban_for_duration
+    """
 
     @staticmethod
     def make_key(player_id: int, matchmaker: str, all: bool) -> str:
