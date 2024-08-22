@@ -10,7 +10,8 @@ from drift.blueprint import Blueprint, abort
 
 from drift.core.extensions.jwt import current_user, requires_roles
 from drift.core.extensions.urlregistry import Endpoints
-from sqlalchemy import func
+from sqlalchemy import func, cast, Integer, case, and_
+from sqlalchemy.engine import Row
 
 from driftbase.matchqueue import process_match_queue
 from driftbase.models.db import Machine, Server, Match, MatchTeam, MatchPlayer, MatchQueuePlayer, CorePlayer
@@ -247,7 +248,19 @@ class MatchesAPI(MethodView):
                 )
 
             if player_id:
-                matches_query = matches_query.join(MatchPlayer, Match.match_id == MatchPlayer.match_id).filter(MatchPlayer.player_id == player_id)
+                matches_query = matches_query.join(
+                    MatchPlayer, and_(Match.match_id == MatchPlayer.match_id,
+                                      MatchPlayer.player_id == player_id)
+                )
+                matches_query = matches_query.join(
+                    MatchTeam, and_(MatchPlayer.team_id == MatchTeam.team_id,
+                                    MatchTeam.match_id == Match.match_id)
+                )
+                is_winner = case(
+                    [(cast(Match.match_statistics['winning_team_id'].astext, Integer) == MatchTeam.team_id, True)],
+                    else_=False
+                ).label("is_winner")
+                matches_query = matches_query.add_columns(is_winner)
 
             if server_id:
                 matches_query = matches_query.filter(Match.server_id == server_id)
@@ -277,11 +290,18 @@ class MatchesAPI(MethodView):
 
             matches = []
             for match_row in matches_result.items:
-                # Service role gets a list of ORM object, but the client (which selects specific columns) gets an SQLAlchemy Row object
-                if is_service:
+                if isinstance(match_row, Row):
+                    if hasattr(match_row, 'Match'):
+                        match_record = match_row.Match.as_dict()
+                        if hasattr(match_row, 'is_winner'):
+                            match_record["is_winner"] = match_row.is_winner
+                    else:
+                        match_record = match_row._asdict()
+                elif isinstance(match_row, Match):
                     match_record = match_row.as_dict()
                 else:
-                    match_record = match_row._asdict() # The Row object has an _asdict() method that *isn't* private/protected. It's part of the NamedTuple API
+                    # pre SQLAlchemy 1.4 this would happen
+                    match_record = match_row._asdict()
 
                 match_id = match_record["match_id"]
 
