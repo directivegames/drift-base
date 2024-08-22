@@ -4,6 +4,8 @@ from collections import defaultdict
 import http.client as http_client
 
 from drift.test_helpers.systesthelper import uuid_string
+from sqlalchemy.util import timezone
+
 from driftbase.utils.test_utils import BaseMatchTest
 
 
@@ -98,17 +100,74 @@ class MatchesTest(BaseMatchTest):
         for m in resp_json["items"]:
             self.assertEqual(datetime.datetime.fromisoformat(m["start_date"]).date(), datetime.date.today())
 
+        # No matches from yesterday
         resp = self.get("/matches", params={"use_pagination": True,
                                             "start_date": (datetime.date.today() - datetime.timedelta(1)).isoformat()})
         resp_json = resp.json()
 
         assert len(resp_json["items"]) == 0
 
+        # No matches from tomorrow
         resp = self.get("/matches", params={"use_pagination": True,
                                             "start_date": (datetime.date.today() + datetime.timedelta(1)).isoformat()})
         resp_json = resp.json()
 
         assert len(resp_json["items"]) == 0
+
+    def test_match_information(self):
+        self.make_player()
+        player_id_1 = self.player_id
+        self.make_player()
+        player_id_2 = self.player_id
+
+        matches = []
+        self.auth_service()
+        for _ in range(10):
+            match = self._create_match()
+            matches.append(match)
+
+        for match in matches:
+            match_id = match["match_id"]
+            match_url = match["url"]
+            teams_url = match["teams_url"]
+            resp = self.get(match_url).json()
+
+            matchplayers_url = resp["matchplayers_url"]
+
+            for _ in range(2):
+                resp = self.post(teams_url, data={}, expected_status_code=http_client.CREATED).json()
+            teams = self.get(teams_url).json()
+
+            for i, player_id in enumerate([player_id_1, player_id_2]):
+                team = teams[i % 2]
+                data = {"player_id": player_id,
+                        "team_id": team["team_id"]
+                        }
+                resp = self.post(matchplayers_url, data=data, expected_status_code=http_client.CREATED).json()
+
+            resp = self.get(match_url).json()
+            self.assertEqual(len(resp["teams"]), 2)
+            self.assertIsNotNone(resp["start_date"])
+            self.assertEqual(resp["num_players"], 2)
+
+            data = {
+                ""
+            }
+            self.put(match_url, data={"status": "completed", "match_statistics":{"winning_team_id": teams[0]["team_id"]}})
+
+        # Check winner information is included when asking for a player's matches
+        resp = self.get("/matches", params={"use_pagination": True, "player_id": player_id_1, "start_date": datetime.datetime.now(tz=timezone.utc).date().isoformat()})
+        resp_json = resp.json()
+        self.assertEqual(resp_json["items"][0]["match_id"], matches[-1]["match_id"])
+        self.assertEqual(resp_json["items"][0]["is_winner"], True)
+        self.assertEqual(resp_json["items"][1]["is_winner"], True)
+
+        # Check winner information is included when asking for a player's matches
+        resp = self.get("/matches", params={"use_pagination": True, "player_id": player_id_2, "start_date": datetime.datetime.now(tz=timezone.utc).date().isoformat()})
+        resp_json = resp.json()
+        self.assertEqual(resp_json["items"][0]["match_id"], matches[-1]["match_id"])
+        self.assertEqual(resp_json["items"][0]["is_winner"], False)
+        self.assertEqual(resp_json["items"][1]["is_winner"], False)
 
     def test_create_match(self):
         self.auth_service()
