@@ -1,8 +1,10 @@
 # Drift-Base Change Log
 
 - [Drift-Base Change Log](#drift-base-change-log)
-  - [0.20.0](#0200)
+  - [0.21.0](#0210)
     - [Features](#features)
+  - [0.20.0](#0200)
+    - [Features](#features-1)
   - [0.19.0](#0190)
   - [0.18.4](#0184)
   - [0.18.3](#0183)
@@ -59,6 +61,12 @@
     - [Deprecations](#deprecations-1)
 
 ---
+## 0.21.0
+
+### Features
+
+- Support for using partitioned streams for eventlogs
+
 ## 0.20.0
 
 ### Features
