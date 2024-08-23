@@ -2936,13 +2936,13 @@ reference = "directive"
 
 [[package]]
 name = "python-drift"
-version = "0.24.0.dev70"
+version = "0.24.0"
 description = "\"Micro-framework for SOA based applications\""
 optional = false
 python-versions = "*"
 files = [
-    {file = "python_drift-0.24.0.dev70-py3-none-any.whl", hash = "sha256:598bb6e76585069840eb2bbdb27dd167bdbb907fe2f13c4d7ce6b1c8b563fe50"},
-    {file = "python_drift-0.24.0.dev70.tar.gz", hash = "sha256:69da6b5697f97ca5e20b4d39e4301333baba0e2dbf47f3013af93a78e494fc30"},
+    {file = "python_drift-0.24.0-py3-none-any.whl", hash = "sha256:255b3bf75c75f10612f100ecfd87fa1c38b17971caf5f67c7da0eed72899d9fc"},
+    {file = "python_drift-0.24.0.tar.gz", hash = "sha256:d215ab8c3214e02ed1b95641487286c67f58b44d79ba73c44a2d8edbe317ef7b"},
 ]
 
 [package.dependencies]
@@ -4219,4 +4219,4 @@ reference = "directive"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "05373255082920355665adeec5fc47a9a00dd99801ea078e1ffd76b0105681d6"
+content-hash = "554151ae3321824ba36fd9c51de9a3ad13422f4d2eeb405e6465b7b25a13e032"
