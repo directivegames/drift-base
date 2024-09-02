@@ -216,15 +216,21 @@ def process_placement_event(queue_name: str, message: dict) -> None:
 
     raise RuntimeError(f"Unknown event '{event_type}'")
 
+
 def _process_placement_failure(placement_id: str, queue: str, failure: str) -> None:
-    location_id = placement_id.split('-')[-1]
-    with JsonLock(_redis_placement_key(int(location_id), queue), PLACEMENT_REDIS_TTL) as placement_lock:
+    try:
+        location_id = int(placement_id.split('-')[-1])
+    except ValueError:
+        log.warning(f"_process_placement_failure: Placement '{placement_id}' has an invalid format. Ignoring event.")
+        return
+    with JsonLock(_redis_placement_key(location_id, queue), PLACEMENT_REDIS_TTL) as placement_lock:
         placement = placement_lock.value
         if placement is None:
-            log.error(f"_process_placement_failure: Placement '{placement_id}' not found in redis. Ignoring event.")
+            log.warning(f"_process_placement_failure: Placement '{placement_id}' not found in redis. Ignoring event.")
             return
         placement_lock.value = None
     _post_failure(placement["player_ids"][0], placement_id, failure)
+
 
 def _process_fulfilled_event(details: dict, queue: str) -> None:
     placement_id = details["placementId"]
