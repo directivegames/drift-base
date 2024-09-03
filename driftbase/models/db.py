@@ -344,9 +344,9 @@ class Match(ModelBase):
 
     match_id = Column(Integer, primary_key=True)
     server_id = Column(Integer, nullable=False)
-    start_date = Column(DateTime, nullable=True, server_default=utc_now, index=True)
+    start_date = Column(DateTime, nullable=True, server_default=utc_now)
     end_date = Column(DateTime, nullable=True)
-    status = Column(String(50), nullable=True)
+    status = Column(String(50), nullable=True, index=True)
     num_players = Column(Integer, nullable=True)
     max_players = Column(Integer, nullable=True)
     game_mode = Column(String(50), nullable=True)
@@ -355,6 +355,10 @@ class Match(ModelBase):
     details = Column(JSONB, nullable=True)
     status_date = Column(DateTime, nullable=True)
     unique_key = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index('ix_brin_gs_matches_start_date', 'start_date', postgresql_using='brin'),
+    )
 
 
 class MatchPlayer(ModelBase):
