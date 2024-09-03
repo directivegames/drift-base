@@ -15,7 +15,7 @@ from sqlalchemy import (
     Boolean,
 )
 from sqlalchemy import DDL, event
-from sqlalchemy.dialects.postgresql import ENUM, INET, JSON, UUID
+from sqlalchemy.dialects.postgresql import ENUM, INET, JSON, UUID, JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.schema import Sequence, Index
@@ -178,9 +178,9 @@ class Client(ModelBase):
     def is_online(self):
         _, heartbeat_timeout = get_client_heartbeat_config()
         if (
-                self.status == "active"
-                and self.heartbeat + datetime.timedelta(seconds=heartbeat_timeout)
-                >= utcnow()
+            self.status == "active"
+            and self.heartbeat + datetime.timedelta(seconds=heartbeat_timeout)
+            >= utcnow()
         ):
             return True
         return False
@@ -346,15 +346,19 @@ class Match(ModelBase):
     server_id = Column(Integer, nullable=False)
     start_date = Column(DateTime, nullable=True, server_default=utc_now)
     end_date = Column(DateTime, nullable=True)
-    status = Column(String(50), nullable=True)
+    status = Column(String(50), nullable=True, index=True)
     num_players = Column(Integer, nullable=True)
     max_players = Column(Integer, nullable=True)
     game_mode = Column(String(50), nullable=True)
     map_name = Column(String(50), nullable=True)
-    match_statistics = Column(JSON, nullable=True)
-    details = Column(JSON, nullable=True)
+    match_statistics = Column(JSONB, nullable=True)
+    details = Column(JSONB, nullable=True)
     status_date = Column(DateTime, nullable=True)
     unique_key = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        Index('ix_gs_matches_start_date', 'start_date', postgresql_using='brin'),
+    )
 
 
 class MatchPlayer(ModelBase):
@@ -571,6 +575,7 @@ class FriendInvite(ModelBase):
     issued_to_player_id = Column(Integer, ForeignKey("ck_players.player_id"), nullable=True, index=True)
 
     UniqueConstraint(token, name="uq_ck_friend_invites_token")
+
 
 event.listen(
     CorePlayer.__table__,
