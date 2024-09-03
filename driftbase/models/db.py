@@ -357,7 +357,7 @@ class Match(ModelBase):
     unique_key = Column(String(50), nullable=True)
 
     __table_args__ = (
-        Index('ix_brin_gs_matches_start_date', 'start_date', postgresql_using='brin'),
+        Index('ix_gs_matches_start_date', 'start_date', postgresql_using='brin'),
     )
 
 
