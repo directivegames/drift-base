@@ -17,7 +17,7 @@ AUTH_MODULES = {
     'discord': 'driftbase.auth.discord',        
     # below are disabled for now because we have not determined if/how their tokens should be verified
     # 'twitter': 'driftbase.auth.twitter',
-    # 'steamopenid': 'driftbase.auth.steamopenid',
+    'steamopenid': 'driftbase.auth.steamopenid',
     # 'google': 'driftbase.auth.google',
     # 'facebook': 'driftbase.auth.facebook',
 }
