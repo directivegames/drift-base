@@ -3,7 +3,8 @@ from driftbase.flask.flaskproxy import g
 from marshmallow import Schema, fields
 from marshmallow.decorators import post_load
 from driftbase.messages import post_message
-from driftbase.models.db import Friendship
+from driftbase.utils.exceptions import NotFoundException
+from driftbase.models.db import Friendship, CorePlayer
 
 class PlayerRichPresence:
     """
@@ -52,8 +53,12 @@ def get_richpresence(player_id : int) -> PlayerRichPresence:
     Fetches the rich presence information for the specified player.
     """
 
+    player = g.db.query(CorePlayer).get(player_id)
+    if not player:
+        return NotFoundException
+
     key = _get_redis_key(player_id)
-    presence_json = g.redis.get(key)
+    presence_json = g.redis.conn.get(key)
 
     if presence_json:
         return RichPresenceSchema(many=False).load(presence_json)
@@ -93,10 +98,10 @@ def set_richpresence(player_id : int, presence : PlayerRichPresence) -> None:
     presence_json = RichPresenceSchema(many=False).dump(presence)
     key = _get_redis_key(player_id)
 
-    original_presence = g.redis.get(key)
+    original_presence = g.redis.conn.get(key)
 
     if original_presence != presence_json:
         for receiver_id in _get_friends(player_id):
             post_message("players", int(receiver_id), "richpresence", presence_json, sender_system=True)
     
-    g.redis.set(key, presence_json)
+    g.redis.conn.set(key, presence_json)

@@ -237,7 +237,10 @@ class ClientsAPI(MethodView):
 
         current_app.extensions["messagebus"].publish_message("client", message_data)
 
-        richpresence.set_online_status(player_id, True)
+        try:
+            richpresence.set_online_status(player_id, True)
+        except Exception as e:
+            log.exception(f"Failed to set online match status while registering client. {e}")
         return ret
 
 
@@ -350,7 +353,7 @@ class ClientAPI(MethodView):
         try:
             richpresence.set_online_status(player_id, False)
         except Exception as e:
-            log.exception(f"Failed to set clear mach status during player-left-match. {e}")
+            log.exception(f"Failed to set clear match status during player-left-match. {e}")
 
         return json_response("Client has been closed. Please terminate the client.",
                              http_client.OK)

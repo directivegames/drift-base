@@ -2,6 +2,7 @@ import http.client as http_client
 from driftbase.utils.test_utils import BaseCloudkitTest
 import driftbase.richpresence as rp
 from driftbase.richpresence import PlayerRichPresence, RichPresenceSchema
+from flask import url_for
 
 class RichPresenceTest(BaseCloudkitTest):
     """
@@ -14,13 +15,8 @@ class RichPresenceTest(BaseCloudkitTest):
         return self.get(url).json()
 
     def _get_message_queue_url(self, player_id : int, message_id : int = 1) -> str:
-        url : str = self.endpoints['template_get_message'] \
-            .replace('{exchange}', "players") \
-            .replace('{exchange_id}', str(player_id)) \
-            .replace('{queue}', 'richpresence') \
-            .replace('{message_id}', str(message_id))
-
-        return url
+        with self._request_context():
+            return url_for("messages.message", exchange_id=player_id, exchange="players", queue="richpresence", message_id=message_id, _external=True)
 
     def test_richpresence_is_online(self):
         """

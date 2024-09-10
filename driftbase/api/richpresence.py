@@ -4,10 +4,9 @@ can be queried from this extension, or you can listen to the message queue to ge
 """
 
 from flask.views import MethodView
-from driftbase.flask.flaskproxy import g
-from driftbase.models.db import CorePlayer
 from marshmallow import Schema, fields
 from drift.blueprint import Blueprint
+from driftbase.utils.exceptions import DriftBaseException
 import http.client as http_client
 from driftbase.richpresence import RichPresenceSchema, get_richpresence
 from drift.core.extensions.urlregistry import Endpoints
@@ -42,13 +41,11 @@ class RichPresenceAPI(MethodView):
 
         Retrieve rich-presence information for a specific player
         """
-        
-        player = g.db.query(CorePlayer).get(player_id)
-        if not player:
-            abort(http_client.NOT_FOUND)
 
         try:
             return get_richpresence(player_id)
+        except DriftBaseException as e:
+            abort(e.error_code(), message=e.msg)
         except Exception:
             abort(http_client.INTERNAL_SERVER_ERROR)
 

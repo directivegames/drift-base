@@ -47,6 +47,10 @@ class PlayerSchema(SQLAlchemyAutoSchema):
         'player_summary.list',
         player_id='<player_id>',
     )
+    richpresence_url = AbsoluteURLFor(
+        'richpresence.entry',
+        player_id='<player_id>',
+    )
     countertotals_url = AbsoluteURLFor(
         'player_counters.totals',
         player_id='<player_id>',
