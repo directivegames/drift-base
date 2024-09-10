@@ -949,7 +949,11 @@ class MatchPlayerAPI(MethodView):
 
         match_player.status = "quit"
 
-        richpresence.clear_match_status(player_id)
+        try:
+            richpresence.clear_match_status(player_id)
+        except Exception as e:
+            log.exception(f"Failed to set clear mach status during player-left-match. {e}")
+
 
         num_seconds = (utcnow() - match_player.join_date).total_seconds()
         match_player.leave_date = utcnow()

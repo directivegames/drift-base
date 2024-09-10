@@ -10,11 +10,6 @@ class PlayerRichPresence:
     Rich presence information for a particular player.
     @see PlayerRichPresenceSchema
     """
-    
-    game_mode = ""
-    map_name = ""
-    is_online = False
-    is_in_game = False
 
     def __init__(self, is_online: bool = False, is_in_game: bool = False, game_mode: str = "", map_name: str = ""):
         self.is_online = is_online

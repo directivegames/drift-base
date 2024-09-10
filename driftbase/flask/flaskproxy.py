@@ -17,6 +17,6 @@ class _flaskProxy:
     def __getattr__(self, key):
         return getattr(flask.g, key)
     def __setattr__(self, name: str, value: Any) -> None:
-        flask.g.__setattr__(name, value)
+        setattr(flask.g, name, value)
 
 g = _flaskProxy()

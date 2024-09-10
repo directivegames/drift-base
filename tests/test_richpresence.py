@@ -86,31 +86,27 @@ class RichPresenceTest(BaseCloudkitTest):
         resp = self.post(matchplayers_url, data=data, expected_status_code=http_client.CREATED).json()
         matchplayer_url = resp["url"]
 
-        with self._request_context():
-            res = self._get_player_richpresence(player_id)
+        res = self._get_player_richpresence(player_id)
 
-            # If these starts failing, check the defaults in _create_match
-            self.assertEqual(res['map_name'], "map_name")
-            self.assertEqual(res['game_mode'], "game_mode")
-            self.assertTrue(res['is_in_game'])
+        # If these starts failing, check the defaults in _create_match
+        self.assertEqual(res['map_name'], "map_name")
+        self.assertEqual(res['game_mode'], "game_mode")
+        self.assertTrue(res['is_in_game'])
 
         # Remove player, and re-confirm status
         self.auth_service()
         self.delete(matchplayer_url, expected_status_code=http_client.OK)
 
-        with self._request_context():
-            res = self._get_player_richpresence(player_id)
-            self.assertEqual(res['map_name'], "")
-            self.assertEqual(res['game_mode'], "")
-            self.assertFalse(res['is_in_game'])
+        res = self._get_player_richpresence(player_id)
+        self.assertEqual(res['map_name'], "")
+        self.assertEqual(res['game_mode'], "")
+        self.assertFalse(res['is_in_game'])
 
     def test_richpresence_messagequeue(self):
         """
         Tests that updating rich-presence will send a message to your friends.
         """
-        
-        self.auth()
-        
+                
         # Setup players
         self.auth(username="player_friend")
         friend_id = self.player_id
