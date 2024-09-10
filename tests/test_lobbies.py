@@ -6,6 +6,7 @@ import datetime
 from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
 from driftbase import flexmatch, lobbies, parties
+from driftbase.utils.exceptions import NotFoundException, UnauthorizedException, InvalidRequestException
 
 MOCK_LOBBY = {
     "create_date": "2021-09-24T16:15:08.758448",
@@ -138,14 +139,14 @@ class TestLobbiesAPI(_BaseLobbyTest):
             self.assertIn("lobby_match_placement_url", response.json())
 
             # Not found
-            get_player_lobby_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            get_player_lobby_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.get(lobbies_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Unauthorized
-            get_player_lobby_mock.side_effect = lobbies.UnauthorizedException(MOCK_ERROR)
+            get_player_lobby_mock.side_effect = UnauthorizedException(MOCK_ERROR)
 
             response = self.get(lobbies_url, expected_status_code=http_client.UNAUTHORIZED)
 
@@ -177,7 +178,7 @@ class TestLobbiesAPI(_BaseLobbyTest):
                 self.assertIn("lobby_member_url", member)
 
             # Invalid data
-            create_lobby_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            create_lobby_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.post(lobbies_url, data=post_data, expected_status_code=http_client.BAD_REQUEST)
 
@@ -205,14 +206,14 @@ class TestLobbyAPI(_BaseLobbyTest):
                 self.assertIn("lobby_member_url", member)
 
             # Not found
-            get_player_lobby_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            get_player_lobby_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.get(lobby_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Unauthorized
-            get_player_lobby_mock.side_effect = lobbies.UnauthorizedException(MOCK_ERROR)
+            get_player_lobby_mock.side_effect = UnauthorizedException(MOCK_ERROR)
 
             response = self.get(lobby_url, expected_status_code=http_client.UNAUTHORIZED)
 
@@ -230,21 +231,21 @@ class TestLobbyAPI(_BaseLobbyTest):
             self.assertEqual(response.text, "")
 
             # Not found
-            update_lobby_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            update_lobby_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.patch(lobby_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Invalid data
-            update_lobby_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            update_lobby_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.patch(lobby_url, expected_status_code=http_client.BAD_REQUEST)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Unauthorized
-            update_lobby_mock.side_effect = lobbies.UnauthorizedException(MOCK_ERROR)
+            update_lobby_mock.side_effect = UnauthorizedException(MOCK_ERROR)
 
             response = self.patch(lobby_url, expected_status_code=http_client.UNAUTHORIZED)
 
@@ -262,14 +263,14 @@ class TestLobbyAPI(_BaseLobbyTest):
             self.assertEqual(response.text, "")
 
             # Not found
-            update_lobby_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            update_lobby_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.delete(lobby_url, expected_status_code=http_client.NO_CONTENT)
 
             self.assertEqual(response.text, "")
 
             # Invalid data
-            update_lobby_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            update_lobby_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.delete(lobby_url, expected_status_code=http_client.BAD_REQUEST)
 
@@ -296,14 +297,14 @@ class TestLobbyMembersAPI(_BaseLobbyTest):
                 self.assertIn("lobby_member_url", member)
 
             # Not found
-            join_lobby_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            join_lobby_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.post(lobby_members_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Invalid data
-            join_lobby_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            join_lobby_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.post(lobby_members_url, expected_status_code=http_client.BAD_REQUEST)
 
@@ -323,14 +324,14 @@ class TestLobbyMemberAPI(_BaseLobbyTest):
             self.assertEqual(response.text, "")
 
             # Not found
-            update_lobby_member_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            update_lobby_member_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.put(lobby_member_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Invalid data
-            update_lobby_member_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            update_lobby_member_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.put(lobby_member_url, expected_status_code=http_client.BAD_REQUEST)
 
@@ -350,14 +351,14 @@ class TestLobbyMemberAPI(_BaseLobbyTest):
             self.assertEqual(response.text, "")
 
             # Not found
-            leave_lobby_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            leave_lobby_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.delete(my_lobby_member_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Invalid data
-            leave_lobby_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            leave_lobby_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.delete(my_lobby_member_url, expected_status_code=http_client.BAD_REQUEST)
 
@@ -373,14 +374,14 @@ class TestLobbyMemberAPI(_BaseLobbyTest):
             self.assertEqual(response.text, "")
 
             # Not found
-            kick_member_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            kick_member_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.delete(lobby_member_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Invalid data
-            kick_member_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            kick_member_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.delete(lobby_member_url, expected_status_code=http_client.BAD_REQUEST)
 
