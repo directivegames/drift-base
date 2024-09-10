@@ -21,15 +21,20 @@ class SteamOpenIDDetailsSchema(ma.Schema):
     sig = ma.fields.String(data_key='openid.sig', required=True, allow_none=False)
     
 
+'''
+This authentication is using the OpenId 2.0 authentication protocol and not OAuth
+So the naming of the baseclass is a bit confusing, but the code is still doing its job.
 
+The docs to Open Id 2.0
+https://openid.net/specs/openid-authentication-2_0.html
+
+'''
 class SteamOpenIDValidator(BaseOAuthValidator):
     def __init__(self):
         super().__init__(name=provider_name, details_schema=SteamOpenIDDetailsSchema)
     
 
     def _get_identity(self, provider_details: dict) -> requests.Response | dict:
-        self._abort_unauthorized('token validation not implemented')
-        '''
         data = provider_details
         data['openid.mode'] = 'check_authentication'
         r = requests.post('https://steamcommunity.com/openid/login', data=data)
@@ -38,8 +43,8 @@ class SteamOpenIDValidator(BaseOAuthValidator):
             steam_id = re.search(r'\d+$', provider_details['openid.claimed_id']).group(0)
             return {'id': steam_id}
         else:
-            self._abort_unauthorized(f'OAuth response is not valid: {r.text}')
-        '''        
+            self._abort_unauthorized(f'Open Id 2.0 response is not valid: {r.text}')
+
 
 
 def authenticate(auth_info):
