@@ -7,7 +7,7 @@ from contextlib import ExitStack
 from flask import url_for, g, jsonify, current_app
 from flask.views import MethodView
 from drift.blueprint import Blueprint, abort
-import driftbase.richpresence as richpresence
+from driftbase.richpresence import RichPresenceService
 
 from drift.core.extensions.jwt import current_user, requires_roles
 from drift.core.extensions.urlregistry import Endpoints
@@ -816,7 +816,7 @@ class MatchPlayersAPI(MethodView):
                                        status="active")
             g.db.add(match_player)
         
-        richpresence.set_match_status(player_id, match.map_name, match.game_mode)
+        RichPresenceService(g.db, g.redis).set_match_status(player_id, match.map_name, match.game_mode)
 
         match_player.num_joins += 1
         match_player.join_date = utcnow()
@@ -950,7 +950,7 @@ class MatchPlayerAPI(MethodView):
         match_player.status = "quit"
 
         try:
-            richpresence.clear_match_status(player_id)
+            RichPresenceService(g.db, g.redis).clear_match_status(player_id)
         except Exception as e:
             log.exception(f"Failed to set clear match status during player-left-match. {e}")
 

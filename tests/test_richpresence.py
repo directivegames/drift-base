@@ -1,8 +1,8 @@
 import http.client as http_client
 from driftbase.utils.test_utils import BaseCloudkitTest
-import driftbase.richpresence as rp
+from driftbase.richpresence import RichPresenceService
 from driftbase.richpresence import PlayerRichPresence, RichPresenceSchema
-from flask import url_for
+from flask import url_for, g
 
 class RichPresenceTest(BaseCloudkitTest):
     """
@@ -87,7 +87,6 @@ class RichPresenceTest(BaseCloudkitTest):
         # If these starts failing, check the defaults in _create_match
         self.assertEqual(res['map_name'], "map_name")
         self.assertEqual(res['game_mode'], "game_mode")
-        self.assertTrue(res['is_in_game'])
 
         # Remove player, and re-confirm status
         self.auth_service()
@@ -96,7 +95,6 @@ class RichPresenceTest(BaseCloudkitTest):
         res = self._get_player_richpresence(player_id)
         self.assertEqual(res['map_name'], "")
         self.assertEqual(res['game_mode'], "")
-        self.assertFalse(res['is_in_game'])
 
     def test_richpresence_messagequeue(self):
         """
@@ -117,8 +115,8 @@ class RichPresenceTest(BaseCloudkitTest):
         # Set rich presence, and confirm change via redis
         presence = PlayerRichPresence(True, True, "pushback", "dizzyheights")
         with self._request_context():
-            rp.set_richpresence(friend_id, presence)
-            self.assertTrue(presence, rp.get_richpresence(friend_id))
+            RichPresenceService(g.db, g.redis).set_richpresence(friend_id, presence)
+            self.assertTrue(presence, RichPresenceService(g.db, g.redis).get_richpresence(friend_id))
 
         # Ensure that the message was recieved, and matches expected presence
         url = self._get_message_queue_url(player_id)

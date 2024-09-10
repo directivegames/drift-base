@@ -1,10 +1,11 @@
 from __future__ import annotations
-from driftbase.flask.flaskproxy import g
 from marshmallow import Schema, fields
 from marshmallow.decorators import post_load
 from driftbase.messages import post_message
 from driftbase.utils.exceptions import NotFoundException
 from driftbase.models.db import Friendship, CorePlayer
+from sqlalchemy.orm import Session
+from drift.core.resources.redis import RedisCache
 
 class PlayerRichPresence:
     """
@@ -34,74 +35,90 @@ class RichPresenceSchema(Schema):
     def make_rich_presence(self, data, **kwargs):
         return PlayerRichPresence(**data)
 
-def _get_friends(player_id) -> list[int]:
-    """
-    Returns an array of player_ids, matching your friends list.
-    """
+class RichPresenceService():
+    def __init__(self, db_session: Session, redis: RedisCache) -> None:
+        self.db_session = db_session
+        self.redis = redis.conn
 
-    left = g.db.query(Friendship.id, Friendship.player1_id, Friendship.player2_id).filter_by(player1_id=player_id, status="active")
-    right = g.db.query(Friendship.id, Friendship.player2_id, Friendship.player1_id).filter_by(player2_id=player_id, status="active")
-    friend_rows = left.union_all(right)
+    def _get_friends(self, player_id) -> list[int]:
+        """
+        Returns an array of player_ids, matching your friends list.
+        """
 
-    return [row[2] for row in friend_rows]
+        left = self.db_session.query(Friendship.id, Friendship.player1_id, Friendship.player2_id).filter_by(player1_id=player_id, status="active")
+        right = self.db_session.query(Friendship.id, Friendship.player2_id, Friendship.player1_id).filter_by(player2_id=player_id, status="active")
+        friend_rows = left.union_all(right)
 
-def _get_redis_key(player_id) -> str:
-    return g.redis.make_key(f"rich_presence:{player_id}")
+        return [row[2] for row in friend_rows]
+
+    def _get_redis_key(self, player_id) -> str:
+        return f"rich_presence:{player_id}"
     
-def get_richpresence(player_id : int) -> PlayerRichPresence:
-    """
-    Fetches the rich presence information for the specified player.
-    """
+    def _notify_rich_presence_changed(self, player_id):
+        presence = self.get_richpresence(player_id)
+        presence_json = RichPresenceSchema(many=False).dump(presence)
 
-    player = g.db.query(CorePlayer).get(player_id)
-    if not player:
-        return NotFoundException
-
-    key = _get_redis_key(player_id)
-    presence_json = g.redis.conn.get(key)
-
-    if presence_json:
-        return RichPresenceSchema(many=False).load(presence_json)
-    else:
-        return PlayerRichPresence()
-
-def set_online_status(player_id: int, is_online: bool):
-    """
-    Sets the players online status, and updates rich-presence
-    """
-    presence = get_richpresence(player_id)
-    presence.is_online = is_online
-    set_richpresence(player_id, presence)
-
-def set_match_status(player_id: int, map_name: str, game_mode: str, is_in_game : bool = True):
-    """
-    Sets the players match status, and updates rich-presence
-    """
-    presence = get_richpresence(player_id)
-    presence.is_in_game = is_in_game
-    presence.game_mode = game_mode
-    presence.map_name = map_name
-    set_richpresence(player_id, presence)
-
-def clear_match_status(player_id : int) -> None:
-    """
-    Returns a players match status back to the default values
-    """
-    set_match_status(player_id, "", "", False)
-
-def set_richpresence(player_id : int, presence : PlayerRichPresence) -> None:
-    """
-    Sets the rich presence information for a player. Will queue messages for consumption by interested
-    clients.
-    """
-
-    presence_json = RichPresenceSchema(many=False).dump(presence)
-    key = _get_redis_key(player_id)
-
-    original_presence = g.redis.conn.get(key)
-
-    if original_presence != presence_json:
-        for receiver_id in _get_friends(player_id):
+        for receiver_id in self._get_friends(player_id):
             post_message("players", int(receiver_id), "richpresence", presence_json, sender_system=True)
-    
-    g.redis.conn.set(key, presence_json)
+
+    def get_richpresence(self, player_id : int) -> PlayerRichPresence:
+        """
+        Fetches the rich presence information for the specified player.
+        """
+
+        player = self.db_session.query(CorePlayer).get(player_id)
+        if not player:
+            return NotFoundException
+
+        key = self._get_redis_key(player_id)
+        presence_dict = self.redis.hgetall(key)
+
+        if presence_dict:
+            return RichPresenceSchema(many=False).load(presence_dict)
+        else:
+            return PlayerRichPresence()
+
+    def set_online_status(self, player_id: int, is_online: bool):
+        """
+        Sets the players online status, and updates rich-presence
+        """
+        key = self._get_redis_key(player_id)
+        old_online = self.redis.hget(key, "is_online")
+        self.redis.hset(key, "is_online", int(is_online))
+
+        if old_online != is_online:
+            self._notify_rich_presence_changed(player_id)
+
+    def set_match_status(self, player_id: int, map_name: str, game_mode: str):
+        """
+        Sets the players match status, and updates rich-presence
+        """
+
+        key = self._get_redis_key(player_id)
+        old_game_mode = self.redis.hget(key, "game_mode")
+        old_map_name = self.redis.hget(key, "map_name")
+
+        is_in_game = map_name != "" and game_mode != ""
+
+        self.redis.hset(key, "game_mode", game_mode)
+        self.redis.hset(key, "map_name", map_name)
+        self.redis.hset(key, "is_in_game", int(is_in_game))
+
+        if old_game_mode != game_mode or old_map_name != map_name:
+            self._notify_rich_presence_changed(player_id)
+
+
+    def clear_match_status(self, player_id : int) -> None:
+        """
+        Returns a players match status back to the default values
+        """
+        self.set_match_status(player_id, "", "")
+
+    def set_richpresence(self, player_id : int, presence : PlayerRichPresence) -> None:
+        """
+        Sets the rich presence information for a player. Will queue messages for consumption by interested
+        clients.
+        """
+
+        self.set_match_status(player_id, presence.map_name, presence.game_mode)
+        self.set_online_status(player_id, presence.is_online)

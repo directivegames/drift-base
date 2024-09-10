@@ -8,9 +8,9 @@ from marshmallow import Schema, fields
 from drift.blueprint import Blueprint
 from driftbase.utils.exceptions import DriftBaseException
 import http.client as http_client
-from driftbase.richpresence import RichPresenceSchema, get_richpresence
+from driftbase.richpresence import RichPresenceSchema, RichPresenceService
 from drift.core.extensions.urlregistry import Endpoints
-from flask import url_for
+from flask import url_for, g
 from webargs.flaskparser import abort
 
 
@@ -43,7 +43,7 @@ class RichPresenceAPI(MethodView):
         """
 
         try:
-            return get_richpresence(player_id)
+            return RichPresenceService(g.db, g.redis).get_richpresence(player_id)
         except DriftBaseException as e:
             abort(e.error_code(), message=e.msg)
         except Exception:

@@ -19,7 +19,7 @@ from drift.blueprint import Blueprint, abort
 from flask_marshmallow.fields import AbsoluteURLFor
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
-import driftbase.richpresence as richpresence
+from driftbase.richpresence import RichPresenceService
 
 from drift.core.extensions.jwt import current_user, issue_token
 from drift.core.extensions.urlregistry import Endpoints
@@ -238,7 +238,7 @@ class ClientsAPI(MethodView):
         current_app.extensions["messagebus"].publish_message("client", message_data)
 
         try:
-            richpresence.set_online_status(player_id, True)
+            RichPresenceService(g.db, g.redis).set_online_status(player_id, True)
         except Exception as e:
             log.exception(f"Failed to set online match status while registering client. {e}")
         return ret
@@ -351,7 +351,7 @@ class ClientAPI(MethodView):
         current_app.extensions["messagebus"].publish_message("client", message_data)
 
         try:
-            richpresence.set_online_status(player_id, False)
+            RichPresenceService(g.db, g.redis).set_online_status(player_id, False)
         except Exception as e:
             log.exception(f"Failed to set clear match status during player-left-match. {e}")
 
