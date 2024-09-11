@@ -2,7 +2,7 @@ from __future__ import annotations
 from marshmallow import Schema, fields
 from marshmallow.decorators import post_load
 from driftbase.messages import post_message
-from driftbase.utils.exceptions import NotFoundException
+from driftbase.utils.exceptions import NotFoundException, ForbiddenException
 from driftbase.models.db import Friendship, CorePlayer
 from sqlalchemy.orm import Session
 from drift.core.resources.redis import RedisCache
@@ -36,13 +36,15 @@ class RichPresenceSchema(Schema):
         return PlayerRichPresence(**data)
 
 class RichPresenceService():
-    def __init__(self, db_session: Session, redis: RedisCache) -> None:
+    def __init__(self, db_session: Session, redis: RedisCache, local_user : dict) -> None:
         self.db_session = db_session
         self.redis = redis.conn
+        self.local_user = local_user
 
     def _get_friends(self, player_id) -> list[int]:
         """
         Returns an array of player_ids, matching your friends list.
+        # FIXME: This could be refactored to directly use the Friendships API.
         """
 
         left = self.db_session.query(Friendship.id, Friendship.player1_id, Friendship.player2_id).filter_by(player1_id=player_id, status="active")
@@ -65,13 +67,18 @@ class RichPresenceService():
         """
         Fetches the rich presence information for the specified player.
         """
+        local_player = self.local_user['player_id']
 
         player = self.db_session.query(CorePlayer).get(player_id)
         if not player:
-            return NotFoundException
-
+            raise NotFoundException("Player does not exist.")
+        
+        if player_id != local_player and player_id not in self._get_friends(local_player):
+            raise ForbiddenException("No access to player.")
+        
         key = self._get_redis_key(player_id)
         presence_dict = self.redis.hgetall(key)
+        presence_dict['is_in_game'] = presence_dict.get('map_name') != "" or presence_dict.get('game_mode') != ""
 
         if presence_dict:
             return RichPresenceSchema(many=False).load(presence_dict)
@@ -98,11 +105,8 @@ class RichPresenceService():
         old_game_mode = self.redis.hget(key, "game_mode")
         old_map_name = self.redis.hget(key, "map_name")
 
-        is_in_game = map_name != "" and game_mode != ""
-
         self.redis.hset(key, "game_mode", game_mode)
         self.redis.hset(key, "map_name", map_name)
-        self.redis.hset(key, "is_in_game", int(is_in_game))
 
         if old_game_mode != game_mode or old_map_name != map_name:
             self._notify_rich_presence_changed(player_id)

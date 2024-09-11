@@ -12,7 +12,7 @@ from driftbase.richpresence import RichPresenceSchema, RichPresenceService
 from drift.core.extensions.urlregistry import Endpoints
 from flask import url_for, g
 from webargs.flaskparser import abort
-
+from drift.core.extensions.jwt import current_user
 
 bp = Blueprint("richpresence", __name__, url_prefix="/rich-presence/")
 endpoints = Endpoints()
@@ -43,7 +43,7 @@ class RichPresenceAPI(MethodView):
         """
 
         try:
-            return RichPresenceService(g.db, g.redis).get_richpresence(player_id)
+            return RichPresenceService(g.db, g.redis, current_user).get_richpresence(player_id)
         except DriftBaseException as e:
             abort(e.error_code(), message=e.msg)
         except Exception:

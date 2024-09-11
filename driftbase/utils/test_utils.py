@@ -89,6 +89,7 @@ class BaseCloudkitTest(DriftBaseTestCase):
         resp = self.post("/servers", data=data, expected_status_code=http_client.CREATED)
         return resp.json()
 
+    # TODO: Consider moving _app_context and _request_context into drift's systesthelper
     @contextmanager
     def _app_context(self):
         with self.drift_app.app_context() as ctx:

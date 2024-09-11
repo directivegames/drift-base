@@ -3,6 +3,7 @@ from driftbase.utils.test_utils import BaseCloudkitTest
 from driftbase.richpresence import RichPresenceService
 from driftbase.richpresence import PlayerRichPresence, RichPresenceSchema
 from flask import url_for, g
+from driftbase.utils.exceptions import ForbiddenException, NotFoundException
 
 class RichPresenceTest(BaseCloudkitTest):
     """
@@ -87,6 +88,7 @@ class RichPresenceTest(BaseCloudkitTest):
         # If these starts failing, check the defaults in _create_match
         self.assertEqual(res['map_name'], "map_name")
         self.assertEqual(res['game_mode'], "game_mode")
+        self.assertEqual(res['is_in_game'], True)
 
         # Remove player, and re-confirm status
         self.auth_service()
@@ -95,6 +97,7 @@ class RichPresenceTest(BaseCloudkitTest):
         res = self._get_player_richpresence(player_id)
         self.assertEqual(res['map_name'], "")
         self.assertEqual(res['game_mode'], "")
+        self.assertEqual(res['is_in_game'], False)
 
     def test_richpresence_messagequeue(self):
         """
@@ -114,12 +117,44 @@ class RichPresenceTest(BaseCloudkitTest):
 
         # Set rich presence, and confirm change via redis
         presence = PlayerRichPresence(True, True, "pushback", "dizzyheights")
+        
+
         with self._request_context():
-            RichPresenceService(g.db, g.redis).set_richpresence(friend_id, presence)
-            self.assertTrue(presence, RichPresenceService(g.db, g.redis).get_richpresence(friend_id))
+            current_user_mock = {
+                "player_id": player_id
+            }
+            RichPresenceService(g.db, g.redis, current_user_mock).set_richpresence(friend_id, presence)
+            self.assertTrue(presence, RichPresenceService(g.db, g.redis, current_user_mock).get_richpresence(friend_id))
 
         # Ensure that the message was recieved, and matches expected presence
         url = self._get_message_queue_url(player_id)
         payload = self.get(url).json()["payload"]
 
         self.assertTrue(presence, RichPresenceSchema(many=False).load(payload))
+
+    def test_richpresence_noaccess(self):
+        """
+        Tests that it's impossible to get rich-presence information for non-friends.
+        """
+        self.auth(username="player_self")
+        player_id = self.player_id
+        fake_friend_id = 100
+
+        with self._request_context():
+            current_user_mock = {
+                "player_id": player_id
+            }
+            self.assertRaises(NotFoundException, RichPresenceService(g.db, g.redis, current_user_mock).get_richpresence, fake_friend_id)
+
+        self.auth(username="non_friend")
+        non_friend = self.player_id
+
+        with self._request_context():
+            current_user_mock = {
+                "player_id": player_id
+            }
+            self.assertRaises(ForbiddenException, RichPresenceService(g.db, g.redis, current_user_mock).get_richpresence, non_friend)
+
+            
+
+        

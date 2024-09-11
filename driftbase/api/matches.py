@@ -816,7 +816,10 @@ class MatchPlayersAPI(MethodView):
                                        status="active")
             g.db.add(match_player)
         
-        RichPresenceService(g.db, g.redis).set_match_status(player_id, match.map_name, match.game_mode)
+        try:
+            RichPresenceService(g.db, g.redis, current_user).set_match_status(player_id, match.map_name, match.game_mode)
+        except Exception as e:
+            log.exception(f"Failed to set match status while adding player to match. {e}")
 
         match_player.num_joins += 1
         match_player.join_date = utcnow()
@@ -950,7 +953,7 @@ class MatchPlayerAPI(MethodView):
         match_player.status = "quit"
 
         try:
-            RichPresenceService(g.db, g.redis).clear_match_status(player_id)
+            RichPresenceService(g.db, g.redis, current_user).clear_match_status(player_id)
         except Exception as e:
             log.exception(f"Failed to set clear match status during player-left-match. {e}")
 
