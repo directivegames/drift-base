@@ -1,6 +1,7 @@
 # Drift-Base Change Log
 
 - [Drift-Base Change Log](#drift-base-change-log)
+  - [0.22.0](#0220)
   - [0.21.0](#0210)
     - [Features](#features)
   - [0.20.0](#0200)
@@ -61,6 +62,13 @@
     - [Deprecations](#deprecations-1)
 
 ---
+
+## 0.22.0
+
+ - Integrated 'rich presence' support for players.
+  - Fetching rich presence for your friends using `template_richpresence`
+  - Listen for updates with the `richpresence` message queue.
+
 ## 0.21.0
 
 ### Features
