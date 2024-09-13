@@ -5,6 +5,7 @@ import copy
 from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
 from driftbase import match_placements, lobbies, flexmatch
+from driftbase.utils.exceptions import NotFoundException, UnauthorizedException, InvalidRequestException, ForbiddenException
 from tests import test_lobbies
 
 MOCK_PLACEMENT = {
@@ -142,14 +143,14 @@ class TestMatchPlacementsAPI(_BaseMatchPlacementTest):
             self.assertIn("match_placement_url", response.json())
 
             # Not found
-            get_player_match_placement_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            get_player_match_placement_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.get(match_placements_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Unauthorized
-            get_player_match_placement_mock.side_effect = lobbies.UnauthorizedException(MOCK_ERROR)
+            get_player_match_placement_mock.side_effect = UnauthorizedException(MOCK_ERROR)
 
             response = self.get(match_placements_url, expected_status_code=http_client.UNAUTHORIZED)
 
@@ -174,7 +175,7 @@ class TestMatchPlacementsAPI(_BaseMatchPlacementTest):
             self.assertIn("match_placement_url", response.json())
 
             # Invalid data
-            start_lobby_match_placement_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            start_lobby_match_placement_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.post(match_placements_url, data=post_data, expected_status_code=http_client.BAD_REQUEST)
 
@@ -204,7 +205,7 @@ class TestMatchPlacementsAPI(_BaseMatchPlacementTest):
             self.assertIn("match_placement_url", response.json())
 
             # Invalid data
-            start_match_placement_mock.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            start_match_placement_mock.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.post(match_placements_url, data=post_data, expected_status_code=http_client.BAD_REQUEST)
 
@@ -232,14 +233,14 @@ class TestMatchPlacementAPI(_BaseMatchPlacementTest):
             self.assertIn("match_placement_url", response.json())
 
             # Not found
-            start_lobby_match_placement_mock.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            start_lobby_match_placement_mock.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.get(match_placement_url, expected_status_code=http_client.NOT_FOUND)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Forbidden
-            start_lobby_match_placement_mock.side_effect = lobbies.ForbiddenException(MOCK_ERROR)
+            start_lobby_match_placement_mock.side_effect = ForbiddenException(MOCK_ERROR)
 
             response = self.get(match_placement_url, expected_status_code=http_client.FORBIDDEN)
 
@@ -257,21 +258,21 @@ class TestMatchPlacementAPI(_BaseMatchPlacementTest):
             self.assertEqual(response.text, "")
 
             # Not found
-            stop_player_match_placement.side_effect = lobbies.NotFoundException(MOCK_ERROR)
+            stop_player_match_placement.side_effect = NotFoundException(MOCK_ERROR)
 
             response = self.delete(match_placement_url, expected_status_code=http_client.NO_CONTENT)
 
             self.assertEqual(response.text, "")
 
             # Invalid data
-            stop_player_match_placement.side_effect = lobbies.InvalidRequestException(MOCK_ERROR)
+            stop_player_match_placement.side_effect = InvalidRequestException(MOCK_ERROR)
 
             response = self.delete(match_placement_url, expected_status_code=http_client.BAD_REQUEST)
 
             self._assert_error(response, expected_description=MOCK_ERROR)
 
             # Unauthorized
-            stop_player_match_placement.side_effect = lobbies.UnauthorizedException(MOCK_ERROR)
+            stop_player_match_placement.side_effect = UnauthorizedException(MOCK_ERROR)
 
             response = self.delete(match_placement_url, expected_status_code=http_client.UNAUTHORIZED)
 

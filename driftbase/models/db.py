@@ -20,13 +20,10 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.schema import Sequence, Index
 from werkzeug.security import generate_password_hash, check_password_hash
-
 from driftbase.config import get_client_heartbeat_config
-
 
 def utcnow():
     return datetime.datetime.utcnow()
-
 
 class User(ModelBase):
     __tablename__ = "ck_users"
@@ -143,6 +140,9 @@ class CorePlayer(ModelBase):
 
     @hybrid_property
     def is_online(self):
+        """
+        Whether the user is online. This field is also available via the rich-presence system.
+        """
         if self.user and self.user.client:
             return self.user.client.is_online
         return False
@@ -356,7 +356,6 @@ class Match(ModelBase):
     status_date = Column(DateTime, nullable=True)
     unique_key = Column(String(50), nullable=True)
 
-
 class MatchPlayer(ModelBase):
     __tablename__ = "gs_matchplayers"
 
@@ -371,7 +370,6 @@ class MatchPlayer(ModelBase):
     seconds = Column(Integer, nullable=False, default=0)
     statistics = Column(JSON, nullable=True)
     details = Column(JSON, nullable=True)
-
 
 class MatchTeam(ModelBase):
     __tablename__ = "gs_matchteams"

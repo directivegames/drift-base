@@ -7,6 +7,7 @@ from contextlib import ExitStack
 from flask import url_for, g, jsonify, current_app
 from flask.views import MethodView
 from drift.blueprint import Blueprint, abort
+from driftbase.richpresence import RichPresenceService
 
 from drift.core.extensions.jwt import current_user, requires_roles
 from drift.core.extensions.urlregistry import Endpoints
@@ -800,7 +801,7 @@ class MatchPlayersAPI(MethodView):
 
         log.info(
             f"  dug up player_id {player_id} (type {type(player_id)}) and team_id {team_id} (type {type(team_id)})")
-        match = g.db.query(Match).get(match_id)
+        match : Match | None = g.db.query(Match).get(match_id)
         if not match:
             log.warning(f" match {match_id} not found. Aborting")
             abort(http_client.NOT_FOUND, description="Match not found")
@@ -841,6 +842,12 @@ class MatchPlayersAPI(MethodView):
                                        seconds=0,
                                        status="active")
             g.db.add(match_player)
+        
+        try:
+            RichPresenceService(g.db, g.redis, current_user).set_match_status(player_id, match.map_name, match.game_mode)
+        except Exception as e:
+            log.exception(f"Failed to set match status while adding player to match. {e}")
+
         match_player.num_joins += 1
         match_player.join_date = utcnow()
         match_player.status = "active"
@@ -971,6 +978,13 @@ class MatchPlayerAPI(MethodView):
         team_id = match_player.team_id
 
         match_player.status = "quit"
+
+        try:
+            RichPresenceService(g.db, g.redis, current_user).clear_match_status(player_id)
+        except Exception as e:
+            log.exception(f"Failed to set clear match status during player-left-match. {e}")
+
+
         num_seconds = (utcnow() - match_player.join_date).total_seconds()
         match_player.leave_date = utcnow()
         match_player.seconds += num_seconds

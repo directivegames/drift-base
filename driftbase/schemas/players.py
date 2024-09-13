@@ -1,9 +1,8 @@
 from flask_marshmallow.fields import AbsoluteURLFor
-from marshmallow import pre_dump, fields
+from marshmallow import pre_dump, fields, Schema
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from driftbase.models.db import CorePlayer
 from flask import url_for
-
 
 class PlayerSchema(SQLAlchemyAutoSchema):
     class Meta:
@@ -46,6 +45,10 @@ class PlayerSchema(SQLAlchemyAutoSchema):
     )
     summary_url = AbsoluteURLFor(
         'player_summary.list',
+        player_id='<player_id>',
+    )
+    richpresence_url = AbsoluteURLFor(
+        'richpresence.entry',
         player_id='<player_id>',
     )
     countertotals_url = AbsoluteURLFor(

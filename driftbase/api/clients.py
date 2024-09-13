@@ -19,6 +19,8 @@ from drift.blueprint import Blueprint, abort
 from flask_marshmallow.fields import AbsoluteURLFor
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
+from driftbase.richpresence import RichPresenceService
+
 from drift.core.extensions.jwt import current_user, issue_token
 from drift.core.extensions.urlregistry import Endpoints
 from drift.utils import json_response
@@ -235,6 +237,10 @@ class ClientsAPI(MethodView):
 
         current_app.extensions["messagebus"].publish_message("client", message_data)
 
+        try:
+            RichPresenceService(g.db, g.redis, current_user).set_online_status(player_id, True)
+        except Exception as e:
+            log.exception(f"Failed to set online match status while registering client. {e}")
         return ret
 
 
@@ -322,6 +328,8 @@ class ClientAPI(MethodView):
 
         Deregister an already registered client. Should return status 200 if successful.
         """
+        player_id = current_user["player_id"]
+
         client = get_client(client_id)
         if client.status == "deleted":
             abort(http_client.NOT_FOUND)
@@ -341,6 +349,11 @@ class ClientAPI(MethodView):
         }
 
         current_app.extensions["messagebus"].publish_message("client", message_data)
+
+        try:
+            RichPresenceService(g.db, g.redis, current_user).set_online_status(player_id, False)
+        except Exception as e:
+            log.exception(f"Failed to set clear match status during player-left-match. {e}")
 
         return json_response("Client has been closed. Please terminate the client.",
                              http_client.OK)
