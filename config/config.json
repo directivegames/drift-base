@@ -23,6 +23,7 @@
         "driftbase.api.servers",
         "driftbase.api.machines",
         "driftbase.api.parties",
+        "driftbase.api.richpresence",
         "driftbase.api.staticdata",
         "driftbase.api.runconfigs",
         "driftbase.api.machinegroups",

@@ -9,6 +9,7 @@ from flask.views import MethodView
 from drift.blueprint import abort
 from flask import url_for
 from drift.core.extensions.jwt import current_user
+from driftbase.utils.exceptions import ForbiddenException, NotFoundException, UnauthorizedException, InvalidRequestException, TryLaterException
 from driftbase import match_placements, lobbies, flexmatch
 import http.client as http_client
 import logging
@@ -78,9 +79,9 @@ class MatchPlacementsAPI(MethodView):
                                                              _external=True)
 
             return match_placement
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
 
     @bp.arguments(CreateMatchPlacementRequestSchema)
@@ -106,9 +107,9 @@ class MatchPlacementsAPI(MethodView):
                                                              _external=True)
 
             return match_placement
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
         except flexmatch.GameliftClientException as e:
             log.error(f"Failed to start match placement for player '{player_id}': Gamelift response:\n'{e.debugs}'")
@@ -130,9 +131,9 @@ class MatchPlacementAPI(MethodView):
             match_placement["match_placement_url"] = url_for("match-placements.match-placement",
                                                              match_placement_id=match_placement_id, _external=True)
             return match_placement
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.ForbiddenException as e:
+        except ForbiddenException as e:
             abort(http_client.FORBIDDEN, message=e.msg)
 
     @bp.response(http_client.CREATED)
@@ -144,11 +145,11 @@ class MatchPlacementAPI(MethodView):
             log.info(f"Created player session '{player_session['PlayerSessionId']}' for player '{player_id}' "
                      f"on match placement '{match_placement_id}'")
             return player_session
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.ForbiddenException as e:
+        except ForbiddenException as e:
             abort(http_client.FORBIDDEN, message=e.msg)
-        except lobbies.TryLaterException as e:
+        except TryLaterException as e:
             abort(http_client.SERVICE_UNAVAILABLE, message=e.msg)
 
     @bp.response(http_client.NO_CONTENT)
@@ -160,14 +161,14 @@ class MatchPlacementAPI(MethodView):
 
         try:
             match_placements.stop_player_match_placement(player_id, match_placement_id)
-        except lobbies.NotFoundException:
+        except NotFoundException:
             pass
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
         except flexmatch.GameliftClientException as e:
             log.error(f"Failed to stop match placement for player '{player_id}': Gamelift response:\n'{e.debugs}'")
             abort(http_client.INTERNAL_SERVER_ERROR, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
 
 

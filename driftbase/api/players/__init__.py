@@ -35,7 +35,6 @@ def _get_shoutout():
 def _get_db():
     return g.db
 
-
 class PlayersListArgs(ma.Schema):
     class Meta:
         strict = True
@@ -115,7 +114,6 @@ def _handle_set_player_name_from_seasons(*args, **kwargs):
 # TODO: Have this configured on a per product level and use drift config to specify it.
 MIN_NAME_LEN = 1
 MAX_NAME_LEN = 20
-
 
 @bp.route('', endpoint='list')
 class PlayersListAPI(MethodView):
@@ -237,7 +235,6 @@ def endpoint_info(current_user):
         "my_summary": None,
         "template_player_gamestate": template_player_gamestate_url,
     }
-
     if current_user:
         player_id = current_user["player_id"]
         ret["my_player"] = url_player(player_id)

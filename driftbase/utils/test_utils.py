@@ -5,9 +5,16 @@ import http.client as http_client
 from drift.test_helpers.systesthelper import uuid_string
 from driftbase.systesthelper import DriftBaseTestCase
 
+from werkzeug.local import LocalProxy
+from driftbase.flask.flaskproxy import g
+import gevent
+from drift.utils import get_config
+from drift.core.extensions.driftconfig import get_config_for_request
+from drift.core.resources.postgres import get_sqlalchemy_session
+from drift.core.resources.redis import get_redis_session
+from contextlib import contextmanager
 
 class BaseCloudkitTest(DriftBaseTestCase):
-
     def make_player(self, username=None):
         username = username or uuid_string()
         self.auth(username=username)
@@ -81,6 +88,28 @@ class BaseCloudkitTest(DriftBaseTestCase):
                 }
         resp = self.post("/servers", data=data, expected_status_code=http_client.CREATED)
         return resp.json()
+
+    # TODO: Consider moving _app_context and _request_context into drift's systesthelper
+    @contextmanager
+    def _app_context(self):
+        with self.drift_app.app_context() as ctx:
+            drift_config = self.drift_app.extensions['driftconfig']
+            ctx.driftconfig = get_config()
+            yield ctx
+
+    @contextmanager
+    def _request_context(self, *args, **kwargs):
+        with self._app_context():
+            if "path" not in kwargs:
+                kwargs["path"] = "/test/endpoint"
+            with self.drift_app.test_request_context(*args, **kwargs) as request_ctx:
+                g.conf = LocalProxy(get_config_for_request)
+                g.db = LocalProxy(get_sqlalchemy_session)
+                g.redis = LocalProxy(get_redis_session)
+                try:
+                    yield request_ctx
+                finally:
+                    gevent.idle()
 
     def _create_match(self, server_id=None, expected_status_code=http_client.CREATED, **kwargs):
         if "service" not in self.current_user["roles"]:

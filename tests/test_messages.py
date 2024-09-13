@@ -60,6 +60,7 @@ class MessagesTest(BaseCloudkitTest):
 
         # Attempt to fetch just the message we just sent
         r = self.get(message_url).json()
+
         self.assertEqual(r["queue"], "testqueue")
         self.assertIn("payload", r)
         self.assertIn("Hello", r["payload"])

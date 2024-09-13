@@ -10,6 +10,7 @@ from flask import g
 from driftbase.models.db import CorePlayer
 from driftbase.messages import post_message
 from driftbase.utils.redis_utils import timeout_pipe, JsonLock
+from driftbase.utils.exceptions import NotFoundException, UnauthorizedException, ConflictException, InvalidRequestException
 from driftbase import flexmatch, parties
 from redis.exceptions import WatchError
 
@@ -762,33 +763,3 @@ def _post_lobby_event_to_members(receiving_player_ids: list[int], event: str, ev
 
 def _get_number_of_bytes(s: str) -> int:
     return len(s.encode('utf-8'))
-
-
-class LobbyException(Exception):
-    def __init__(self, user_message):
-        super().__init__(user_message)
-        self.msg = user_message
-
-
-class InvalidRequestException(LobbyException):
-    pass
-
-
-class NotFoundException(LobbyException):
-    pass
-
-
-class UnauthorizedException(LobbyException):
-    pass
-
-
-class ConflictException(LobbyException):
-    pass
-
-
-class ForbiddenException(LobbyException):
-    pass
-
-
-class TryLaterException(LobbyException):
-    pass

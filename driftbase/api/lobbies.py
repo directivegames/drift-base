@@ -11,6 +11,7 @@ from flask import url_for
 from drift.core.extensions.jwt import current_user
 from driftbase import lobbies
 import http.client as http_client
+from driftbase.utils.exceptions import NotFoundException, UnauthorizedException, ConflictException, InvalidRequestException
 import logging
 import copy
 
@@ -77,11 +78,11 @@ class LobbiesAPI(MethodView):
         try:
             lobby = lobbies.get_player_lobby(player_id)
             return _add_lobby_urls(lobby)
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
     @bp.arguments(CreateLobbyRequestSchema)
@@ -104,9 +105,9 @@ class LobbiesAPI(MethodView):
             )
 
             return _add_lobby_urls(lobby)
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
 
@@ -130,11 +131,11 @@ class LobbyAPI(MethodView):
         try:
             lobby = lobbies.get_player_lobby(player_id, lobby_id)
             return _add_lobby_urls(lobby)
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
     @bp.arguments(UpdateLobbyRequestSchema)
@@ -154,13 +155,13 @@ class LobbyAPI(MethodView):
                 args.get("map_name"),
                 args.get("custom_data"),
             )
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
     @bp.response(http_client.NO_CONTENT)
@@ -171,13 +172,13 @@ class LobbyAPI(MethodView):
         """
         try:
             lobbies.delete_lobby(current_user["player_id"], lobby_id)
-        except lobbies.NotFoundException:
+        except NotFoundException:
             pass
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
 
@@ -195,11 +196,11 @@ class LobbyMembersAPI(MethodView):
             lobby = lobbies.join_lobby(player_id, lobby_id)
 
             return _add_lobby_urls(lobby)
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
 
@@ -223,13 +224,13 @@ class LobbyMemberAPI(MethodView):
                 args.get("team_name"),
                 args.get("ready")
             )
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
     @bp.response(http_client.NO_CONTENT)
@@ -243,13 +244,13 @@ class LobbyMemberAPI(MethodView):
                 lobbies.leave_lobby(player_id, lobby_id)
             else:
                 lobbies.kick_member(player_id, member_player_id, lobby_id)
-        except lobbies.NotFoundException as e:
+        except NotFoundException as e:
             abort(http_client.NOT_FOUND, message=e.msg)
-        except lobbies.InvalidRequestException as e:
+        except InvalidRequestException as e:
             abort(http_client.BAD_REQUEST, message=e.msg)
-        except lobbies.UnauthorizedException as e:
+        except UnauthorizedException as e:
             abort(http_client.UNAUTHORIZED, message=e.msg)
-        except lobbies.ConflictException as e:
+        except ConflictException as e:
             abort(http_client.CONFLICT, message=e.msg)
 
 
