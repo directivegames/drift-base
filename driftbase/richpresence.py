@@ -61,7 +61,7 @@ class RichPresenceService():
         presence_json = RichPresenceSchema(many=False).dump(presence)
 
         for receiver_id in self._get_friends(player_id):
-            post_message("players", int(receiver_id), "richpresence", presence_json, sender_system=True)
+            post_message("players", int(receiver_id), "richpresence", presence_json, sender_system=False)
 
     def get_richpresence(self, player_id : int) -> PlayerRichPresence:
         """
