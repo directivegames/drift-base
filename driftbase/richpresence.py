@@ -13,11 +13,12 @@ class PlayerRichPresence:
     @see PlayerRichPresenceSchema
     """
 
-    def __init__(self, is_online: bool = False, is_in_game: bool = False, game_mode: str = "", map_name: str = ""):
+    def __init__(self, player_id: int, is_online: bool = False, is_in_game: bool = False, game_mode: str = "", map_name: str = ""):
+        self.player_id = player_id
         self.is_online = is_online
         self.is_in_game = is_in_game
-        self.map_name = map_name
         self.game_mode = game_mode
+        self.map_name = map_name
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -26,10 +27,12 @@ class PlayerRichPresence:
             return False
     
 class RichPresenceSchema(Schema):
-    game_mode = fields.Str()
-    map_name = fields.Str()
+    player_id = fields.Int()
     is_online = fields.Bool()
     is_in_game = fields.Bool()
+    game_mode = fields.Str()
+    map_name = fields.Str()
+
 
     @post_load
     def make_rich_presence(self, data, **kwargs):
@@ -79,6 +82,7 @@ class RichPresenceService():
         key = self._get_redis_key(player_id)
         presence_dict = self.redis.hgetall(key)
         presence_dict['is_in_game'] = presence_dict.get('map_name') != "" or presence_dict.get('game_mode') != ""
+        presence_dict['player_id'] = player_id
 
         if presence_dict:
             return RichPresenceSchema(many=False).load(presence_dict)

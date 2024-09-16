@@ -116,9 +116,8 @@ class RichPresenceTest(BaseCloudkitTest):
         self.post(self.endpoints["my_friends"], data={"token": friend_token}, expected_status_code=http_client.CREATED)
 
         # Set rich presence, and confirm change via redis
-        presence = PlayerRichPresence(True, True, "pushback", "dizzyheights")
+        presence = PlayerRichPresence(friend_id, True, True, "pushback", "dizzyheights")
         
-
         with self._request_context():
             current_user_mock = {
                 "player_id": player_id
@@ -130,7 +129,7 @@ class RichPresenceTest(BaseCloudkitTest):
         url = self._get_message_queue_url(player_id)
         payload = self.get(url).json()["payload"]
 
-        self.assertTrue(presence, RichPresenceSchema(many=False).load(payload))
+        self.assertEqual(presence, RichPresenceSchema(many=False).load(payload))
 
     def test_richpresence_noaccess(self):
         """
