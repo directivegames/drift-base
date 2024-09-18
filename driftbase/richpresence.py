@@ -43,7 +43,7 @@ class RichPresenceSchema(Schema):
 class RichPresenceService():
     def __init__(self, db_session: Session, redis: RedisCache, local_user : dict) -> None:
         self.db_session = db_session
-        self.redis = redis.conn
+        self.redis = redis
         self.local_user = local_user
 
     def _get_friends(self, player_id) -> list[int]:
@@ -59,13 +59,11 @@ class RichPresenceService():
         return [row[2] for row in friend_rows]
 
     def _get_redis_key(self, player_id) -> str:
-        return f"rich_presence:{player_id}"
+        return self.redis.make_key(f"rich_presence:{player_id}")
     
     def _notify_rich_presence_changed(self, player_id):
         presence = self.get_richpresence(player_id)
         presence_json = RichPresenceSchema(many=False).dump(presence)
-
-        log.info(f"_notify_rich_presence_changed {player_id}: {str(presence_json)}")
 
         for receiver_id in self._get_friends(player_id):
             post_message("players", int(receiver_id), "richpresence", presence_json, sender_system=True)
@@ -86,52 +84,48 @@ class RichPresenceService():
             raise ForbiddenException("No access to player.")
         
         key = self._get_redis_key(player_id)
-        presence_dict = self.redis.hgetall(key)
+        presence_dict = self.redis.conn.hgetall(key)
 
-        log.info(f"get_richpresence (pre) key={key}, dict={str(presence_dict)}")
-
-        presence_dict['is_in_game'] = presence_dict.get('map_name') != "" or presence_dict.get('game_mode') != ""
+        presence_dict['is_in_game'] = presence_dict.get('map_name', "") != "" or presence_dict.get('game_mode', "") != ""
         presence_dict['player_id'] = player_id
-
-        log.info(f"get_richpresence (post) key={key}, dict={str(presence_dict)}")
 
         if presence_dict:
             return RichPresenceSchema(many=False).load(presence_dict)
         else:
             return PlayerRichPresence()
 
-    def set_online_status(self, player_id: int, is_online: bool):
+    def set_online_status(self, player_id: int, is_online: bool, send_notification=True) -> bool:
         """
         Sets the players online status, and updates rich-presence
         """
-        log.info("set_online_status")
 
         key = self._get_redis_key(player_id)
-        old_online = self.redis.hget(key, "is_online")
-        self.redis.hset(key, "is_online", int(is_online))
-
-        log.info(f"set_online_status {player_id}: old={old_online}, new={is_online}")
+        old_online = self.redis.conn.hget(key, "is_online")
+        self.redis.conn.hset(key, "is_online", int(is_online))
 
         if old_online != is_online:
-            self._notify_rich_presence_changed(player_id)
+            if send_notification:
+                self._notify_rich_presence_changed(player_id)
+            return True
+        return False
 
-    def set_match_status(self, player_id: int, map_name: str, game_mode: str):
+    def set_match_status(self, player_id: int, map_name: str, game_mode: str, send_notification=True) -> bool:
         """
         Sets the players match status, and updates rich-presence
         """
 
         key = self._get_redis_key(player_id)
-        old_game_mode = self.redis.hget(key, "game_mode")
-        old_map_name = self.redis.hget(key, "map_name")
+        old_game_mode = self.redis.conn.hget(key, "game_mode")
+        old_map_name = self.redis.conn.hget(key, "map_name")
 
-        self.redis.hset(key, "game_mode", game_mode)
-        self.redis.hset(key, "map_name", map_name)
-
-        log.info(f"set_match_status game_mode {player_id}: old={old_game_mode}, new={game_mode}")
-        log.info(f"set_match_status map_name {player_id}: old={old_map_name}, new={map_name}")
+        self.redis.conn.hset(key, "game_mode", game_mode)
+        self.redis.conn.hset(key, "map_name", map_name)
 
         if old_game_mode != game_mode or old_map_name != map_name:
-            self._notify_rich_presence_changed(player_id)
+            if send_notification:
+                self._notify_rich_presence_changed(player_id)
+            return True
+        return False
 
 
     def clear_match_status(self, player_id : int) -> None:
@@ -146,5 +140,8 @@ class RichPresenceService():
         clients.
         """
 
-        self.set_match_status(player_id, presence.map_name, presence.game_mode)
-        self.set_online_status(player_id, presence.is_online)
+        match_status_changed = self.set_match_status(player_id, presence.map_name, presence.game_mode, False)
+        online_status_changed = self.set_online_status(player_id, presence.is_online, False)
+
+        if match_status_changed or online_status_changed:
+            self._notify_rich_presence_changed(player_id)

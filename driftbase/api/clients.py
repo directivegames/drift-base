@@ -240,7 +240,7 @@ class ClientsAPI(MethodView):
         try:
             RichPresenceService(g.db, g.redis, current_user).set_online_status(player_id, True)
         except Exception as e:
-            log.exception(f"Failed to set online match status while registering client. {e}")
+            log.exception(f"Failed to set online status while registering client. {e}")
         return ret
 
 
@@ -353,7 +353,7 @@ class ClientAPI(MethodView):
         try:
             RichPresenceService(g.db, g.redis, current_user).set_online_status(player_id, False)
         except Exception as e:
-            log.exception(f"Failed to set clear match status during player-left-match. {e}")
+            log.exception(f"Failed to set online status during reregister client. {e}")
 
         return json_response("Client has been closed. Please terminate the client.",
                              http_client.OK)
