@@ -42,7 +42,9 @@ class RichPresenceTest(BaseCloudkitTest):
         client_url = r.json()["url"]
 
         # Ensure client is considered online
-        self.assertTrue(self._get_player_richpresence(player_id)['is_online'])
+        rich_presence = self._get_player_richpresence(player_id)
+        self.assertTrue(rich_presence['is_online'])
+        self.assertFalse(rich_presence['is_in_game'])
 
         # Update our authorization to a client session
         jti = r.json()["jti"]
@@ -53,6 +55,7 @@ class RichPresenceTest(BaseCloudkitTest):
 
         # Ensure client is considered offline post deletion
         self.assertFalse(self._get_player_richpresence(player_id)['is_online'])
+        
 
     def test_richpresence_match_update(self):
         """

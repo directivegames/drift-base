@@ -6,6 +6,9 @@ from driftbase.utils.exceptions import NotFoundException, ForbiddenException
 from driftbase.models.db import Friendship, CorePlayer
 from sqlalchemy.orm import Session
 from drift.core.resources.redis import RedisCache
+import logging
+
+log = logging.getLogger(__name__)
 
 class PlayerRichPresence:
     """
@@ -32,7 +35,6 @@ class RichPresenceSchema(Schema):
     is_in_game = fields.Bool()
     game_mode = fields.Str()
     map_name = fields.Str()
-
 
     @post_load
     def make_rich_presence(self, data, **kwargs):
@@ -63,6 +65,8 @@ class RichPresenceService():
         presence = self.get_richpresence(player_id)
         presence_json = RichPresenceSchema(many=False).dump(presence)
 
+        log.info(f"_notify_rich_presence_changed {player_id}: {str(presence_json)}")
+
         for receiver_id in self._get_friends(player_id):
             post_message("players", int(receiver_id), "richpresence", presence_json, sender_system=True)
 
@@ -74,15 +78,22 @@ class RichPresenceService():
 
         player = self.db_session.query(CorePlayer).get(player_id)
         if not player:
+            log.warning("get_richpresence: Player does not exist.")
             raise NotFoundException("Player does not exist.")
         
         if player_id != local_player and player_id not in self._get_friends(local_player):
+            log.warning("get_richpresence: No access to player.")
             raise ForbiddenException("No access to player.")
         
         key = self._get_redis_key(player_id)
         presence_dict = self.redis.hgetall(key)
+
+        log.info(f"get_richpresence (pre) key={key}, dict={str(presence_dict)}")
+
         presence_dict['is_in_game'] = presence_dict.get('map_name') != "" or presence_dict.get('game_mode') != ""
         presence_dict['player_id'] = player_id
+
+        log.info(f"get_richpresence (post) key={key}, dict={str(presence_dict)}")
 
         if presence_dict:
             return RichPresenceSchema(many=False).load(presence_dict)
@@ -93,9 +104,13 @@ class RichPresenceService():
         """
         Sets the players online status, and updates rich-presence
         """
+        log.info("set_online_status")
+
         key = self._get_redis_key(player_id)
         old_online = self.redis.hget(key, "is_online")
         self.redis.hset(key, "is_online", int(is_online))
+
+        log.info(f"set_online_status {player_id}: old={old_online}, new={is_online}")
 
         if old_online != is_online:
             self._notify_rich_presence_changed(player_id)
@@ -111,6 +126,9 @@ class RichPresenceService():
 
         self.redis.hset(key, "game_mode", game_mode)
         self.redis.hset(key, "map_name", map_name)
+
+        log.info(f"set_match_status game_mode {player_id}: old={old_game_mode}, new={game_mode}")
+        log.info(f"set_match_status map_name {player_id}: old={old_map_name}, new={map_name}")
 
         if old_game_mode != game_mode or old_map_name != map_name:
             self._notify_rich_presence_changed(player_id)
