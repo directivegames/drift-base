@@ -4,14 +4,16 @@ from driftbase.richpresence import RichPresenceService
 from driftbase.richpresence import PlayerRichPresence, RichPresenceSchema
 from flask import url_for, g
 from driftbase.utils.exceptions import ForbiddenException, NotFoundException
+import uuid
 
-class RichPresenceTest(BaseCloudkitTest):
-    """
-    Tests for the /rich-presence endpoints and related implementation.
-    """
-
+class BaseRichPresenceTest(BaseCloudkitTest):
+        
+    def _make_named_player(self, username, player_name=None):
+        self.auth(username=username, player_name=player_name)
+        self.patch(self.endpoints['my_player'], data={"name": player_name or username})
+        return self.player_id
+        
     def _get_player_richpresence(self, player_id : int) -> dict:
-        self.auth()
         url = self.endpoints['template_richpresence'].replace("{player_id}", str(player_id))
         return self.get(url).json()
 
@@ -19,14 +21,22 @@ class RichPresenceTest(BaseCloudkitTest):
         with self._request_context():
             return url_for("messages.message", exchange_id=player_id, exchange="players", queue="richpresence", message_id=message_id, _external=True)
 
+    def _make_user_name(self, name):
+        return "{}.{}".format(str(uuid.uuid4())[:8], name)
+
+
+class RichPresenceIsOnline(BaseRichPresenceTest):
     def test_richpresence_is_online(self):
         """
         Test that a player will become online based on his client status
         """
 
+        username = self._make_user_name("a")
+
         # Create a client
-        self.auth()
+        self._make_named_player(username)
         player_id = self.player_id
+
         clients_uri = self.endpoints["clients"]
         platform_version = "1.20.22"
         data = {
@@ -42,7 +52,9 @@ class RichPresenceTest(BaseCloudkitTest):
         client_url = r.json()["url"]
 
         # Ensure client is considered online
-        self.assertTrue(self._get_player_richpresence(player_id)['is_online'])
+        rich_presence = self._get_player_richpresence(player_id)
+        self.assertTrue(rich_presence['is_online'], "is_online should be true for online client.")
+        self.assertFalse(rich_presence['is_in_game'], "is_in_game should be false for online client.")
 
         # Update our authorization to a client session
         jti = r.json()["jti"]
@@ -52,15 +64,19 @@ class RichPresenceTest(BaseCloudkitTest):
         self.delete(client_url)
 
         # Ensure client is considered offline post deletion
-        self.assertFalse(self._get_player_richpresence(player_id)['is_online'])
+        rich_presence = self._get_player_richpresence(player_id)
+        self.assertFalse(rich_presence['is_online'], "is_online should be false for offline client.")
+        self.assertFalse(rich_presence['is_in_game'], "is_online should be false for offline client.")
 
+class RichPresenceMatchUpdate(BaseRichPresenceTest):
     def test_richpresence_match_update(self):
         """
         Tests that the players rich presence is updated when he joins a match, and when he leaves
         a match.
         """
 
-        self.auth()
+        username = "test_richpresence_match_update"
+        self.auth(username=username)
         player_id = self.player_id
         team_id = 0
 
@@ -83,6 +99,7 @@ class RichPresenceTest(BaseCloudkitTest):
         resp = self.post(matchplayers_url, data=data, expected_status_code=http_client.CREATED).json()
         matchplayer_url = resp["url"]
 
+        self.auth(username=username)
         res = self._get_player_richpresence(player_id)
 
         # If these starts failing, check the defaults in _create_match
@@ -94,23 +111,27 @@ class RichPresenceTest(BaseCloudkitTest):
         self.auth_service()
         self.delete(matchplayer_url, expected_status_code=http_client.OK)
 
+        self.auth(username=username)
+
         res = self._get_player_richpresence(player_id)
         self.assertEqual(res['map_name'], "")
         self.assertEqual(res['game_mode'], "")
         self.assertEqual(res['is_in_game'], False)
 
+class RichPresenceMessageQueue(BaseRichPresenceTest):
     def test_richpresence_messagequeue(self):
         """
         Tests that updating rich-presence will send a message to your friends.
         """
-                
+        
+        friend_username = self._make_user_name("f")
+        self_username = self._make_user_name("s")
+
         # Setup players
-        self.auth(username="player_friend")
-        friend_id = self.player_id
+        friend_id = self._make_named_player(friend_username)
         friend_token = self.post(self.endpoints["friend_invites"], expected_status_code=http_client.CREATED).json()["token"]
 
-        self.auth(username="player_self")
-        player_id = self.player_id
+        player_id = self._make_named_player(self_username)
 
         # Create friend relationship
         self.post(self.endpoints["my_friends"], data={"token": friend_token}, expected_status_code=http_client.CREATED)
@@ -123,14 +144,18 @@ class RichPresenceTest(BaseCloudkitTest):
                 "player_id": player_id
             }
             RichPresenceService(g.db, g.redis, current_user_mock).set_richpresence(friend_id, presence)
-            self.assertTrue(presence, RichPresenceService(g.db, g.redis, current_user_mock).get_richpresence(friend_id))
+            
+            res = RichPresenceService(g.db, g.redis, current_user_mock).get_richpresence(friend_id)
+            self.assertEqual(presence, res)
 
         # Ensure that the message was recieved, and matches expected presence
         url = self._get_message_queue_url(player_id)
         payload = self.get(url).json()["payload"]
 
-        self.assertEqual(presence, RichPresenceSchema(many=False).load(payload))
+        res = RichPresenceSchema(many=False).load(payload)
+        self.assertEqual(presence, res)
 
+class RichPresenceNoAccess(BaseRichPresenceTest):
     def test_richpresence_noaccess(self):
         """
         Tests that it's impossible to get rich-presence information for non-friends.

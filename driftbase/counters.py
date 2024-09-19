@@ -17,7 +17,6 @@ MAX_RETRIES = 3
 
 log = logging.getLogger(__name__)
 
-
 def get_all_counters(force=False):
     def get_all_counters_from_db():
         counters = g.db.query(Counter).all()
