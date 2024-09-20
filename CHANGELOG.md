@@ -63,6 +63,10 @@
 
 ---
 
+## 0.22.2
+## 0.22.1
+
+ - Fix redis key scoping and other misc. issues with Rich Presence
 ## 0.22.0
 
  - Integrated 'rich presence' support for players.
