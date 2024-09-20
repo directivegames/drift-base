@@ -63,6 +63,10 @@
 
 ---
 
+## 0.22.4
+
+ - Fixes match-presence unavailable due to service not having access to query rich presence
+
 ## 0.22.3
 ## 0.22.2
 ## 0.22.1
