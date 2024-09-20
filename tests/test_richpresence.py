@@ -173,12 +173,22 @@ class RichPresenceNoAccess(BaseRichPresenceTest):
         self.auth(username="non_friend")
         non_friend = self.player_id
 
+        ## Test with player role
         with self._request_context():
             current_user_mock = {
-                "player_id": player_id
+                "player_id": player_id,
+                "roles": ["player"]
             }
             self.assertRaises(ForbiddenException, RichPresenceService(g.db, g.redis, current_user_mock).get_richpresence, non_friend)
 
-            
+        ## Test with system role
+        with self._request_context():
+            current_user_mock = {
+                "player_id": player_id,
+                "roles": ["service"]
+            }
 
-        
+            try:
+                RichPresenceService(g.db, g.redis, current_user_mock).get_richpresence(non_friend)
+            except ForbiddenException:
+                self.fail("get_richpresence raised RichPresenceService as a system")
