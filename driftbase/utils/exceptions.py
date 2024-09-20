@@ -30,7 +30,8 @@ class UnauthorizedException(DriftBaseException):
         return http_client.UNAUTHORIZED
 
 class ConflictException(DriftBaseException):
-    def error_code(self):
+    @staticmethod
+    def error_code():
         return http_client.CONFLICT
 
 class ForbiddenException(DriftBaseException):
