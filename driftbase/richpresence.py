@@ -79,7 +79,11 @@ class RichPresenceService():
             log.warning("get_richpresence: Player does not exist.")
             raise NotFoundException("Player does not exist.")
         
-        if player_id != local_player and player_id not in self._get_friends(local_player):
+        is_service = 'service' in self.local_user.get('roles', [])
+        is_local_player = player_id == local_player
+        is_friend = player_id in self._get_friends(local_player)
+
+        if not (is_service or is_local_player or is_friend):
             log.warning("get_richpresence: No access to player.")
             raise ForbiddenException("No access to player.")
         
