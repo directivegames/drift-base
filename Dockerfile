@@ -1,7 +1,7 @@
 ARG PYTHON_VERSION=3.11.8
 ARG BASE_IMAGE=bullseye
 
-FROM python:${PYTHON_VERSION}-slim-${BASE_IMAGE} as builder
+FROM python:${PYTHON_VERSION}-slim-${BASE_IMAGE} AS builder
 
 RUN set -ex \
     && apt-get update \
@@ -39,7 +39,7 @@ RUN --mount=type=secret,id=pip-credentials --mount=type=cache,target=/root/.cach
     && sed -e 's!https://nexus!https://\${PYPI_USERNAME}:\${PYPI_PASSWORD}@nexus!' -e 's/--extra-index-url/-i/' requirements.in.txt >requirements.txt \
     && pip install --user --ignore-installed --no-warn-script-location -r requirements.txt
 
-FROM python:${PYTHON_VERSION}-slim-${BASE_IMAGE} as app
+FROM python:${PYTHON_VERSION}-slim-${BASE_IMAGE} AS app
 LABEL Maintainer="Directive Games <info@directivegames.com>"
 
 ENV PYTHONUNBUFFERED=1
@@ -65,14 +65,14 @@ ARG GIT_REPO_URL
 LABEL AppVersion="${VERSION}"
 LABEL CommitHash="${COMMIT_SHA}"
 
-ENV DD_GIT_REPOSITORY_URL ${GIT_REPO_URL}
-ENV DD_GIT_COMMIT_SHA ${COMMIT_SHA}
+ENV DD_GIT_REPOSITORY_URL=${GIT_REPO_URL}
+ENV DD_GIT_COMMIT_SHA=${COMMIT_SHA}
 
 # For runtime consumption
 RUN echo '{"version": "'${VERSION}'", "build_timestamp": "'${BUILD_TIMESTAMP}'", "commit_hash": "'${COMMIT_SHA}'"}' > .build_info
 
 USER gunicorn
 
-ENV PATH /home/gunicorn/.local/bin:$PATH
+ENV PATH=/home/gunicorn/.local/bin:$PATH
 
 CMD ["gunicorn", "--config", "./config/gunicorn.conf.py"]
