@@ -8,6 +8,7 @@ from flask import g, current_app
 
 from driftbase.models.db import User, CorePlayer, UserIdentity, UserRole
 from driftbase.utils import UserCache
+from werkzeug.security import check_password_hash
 
 log = logging.getLogger(__name__)
 
@@ -130,7 +131,14 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         # if this is a service user make sure the password
         # matches before creating the user
         if username == service_user["username"]:
-            if password != service_user["password"]:
+
+            if password == service_user["password"]:
+                log.info("Using the old service password")
+            elif check_password_hash(service_user["password"], password):
+                log.info("Using the new type of service password")
+
+            if password != service_user["password"] and not check_password_hash(service_user["password"], password):
+
                 log.error("Attempting to log in as service user without correct password!")
                 abort(http_client.METHOD_NOT_ALLOWED,
                       message="Incorrect password for service user")
@@ -140,6 +148,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
             create_roles.add("player")
 
         my_identity = UserIdentity(name=username, identity_type=identity_type)
+
         my_identity.set_password(password)
         if is_old:
             my_user = g.db.query(User) \
