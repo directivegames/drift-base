@@ -132,11 +132,6 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         # matches before creating the user
         if username == service_user["username"]:
 
-            if password == service_user["password"]:
-                log.info("Using the old service password")
-            elif check_password_hash(service_user["password"], password):
-                log.info("Using the new type of service password")
-
             if password != service_user["password"] and not check_password_hash(service_user["password"], password):
 
                 log.error("Attempting to log in as service user without correct password!")
