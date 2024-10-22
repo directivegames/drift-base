@@ -157,6 +157,9 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
     else:
         if not my_identity.check_password(password):
             abort(http_client.METHOD_NOT_ALLOWED, message="Incorrect password")
+        if my_identity.password_hash_needs_update():
+            my_identity.set_password(password)
+            g.db.flush()
 
     if my_identity:
         identity_id = my_identity.identity_id

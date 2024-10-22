@@ -86,6 +86,8 @@ class UserRole(ModelBase):
     role = Column(String(20), nullable=False)
 
 
+PASSWORD_HASH_METHOD = "scrypt:32768:8:1"
+
 class UserIdentity(ModelBase):
     __tablename__ = "ck_user_identities"
 
@@ -102,12 +104,15 @@ class UserIdentity(ModelBase):
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(
-            password, method="pbkdf2:sha1:25000"
+            password, method=PASSWORD_HASH_METHOD
         )
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    def password_hash_needs_update(self):
+        """ return True if we're not currently hashing using scrypt """
+        return not self.password_hash.startswith(PASSWORD_HASH_METHOD)
 
 tbl_user_identity = UserIdentity.__table__
 
