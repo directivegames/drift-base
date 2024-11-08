@@ -17,20 +17,20 @@ class PlayerSchema(SQLAlchemyAutoSchema):
 
     player_url = AbsoluteURLFor(
         'players.entry',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>'),
     )
 
     gamestates_url = AbsoluteURLFor(
         'player_gamestate.list',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>'),
     )
     journal_url = AbsoluteURLFor(
         'player_journal.list',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>'),
     )
     user_url = AbsoluteURLFor(
         'users.entry',
-        user_id='<user_id>',
+        values=dict(user_id='<user_id>'),
     )
     messagequeue_url = fields.Str(
         description="Fully qualified URL of the players' message queue resource"
@@ -40,28 +40,30 @@ class PlayerSchema(SQLAlchemyAutoSchema):
     )
     messages_url = AbsoluteURLFor(
         'messages.exchange',
-        exchange='players',
-        exchange_id='<player_id>',
+        values=dict(
+            exchange='players',
+            exchange_id='<player_id>',
+        )
     )
     summary_url = AbsoluteURLFor(
         'player_summary.list',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>',)
     )
     richpresence_url = AbsoluteURLFor(
         'richpresence.entry',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>'),
     )
     countertotals_url = AbsoluteURLFor(
         'player_counters.totals',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>'),
     )
     counter_url = AbsoluteURLFor(
         'player_counters.list',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>'),
     )
     tickets_url = AbsoluteURLFor(
         'player_tickets.list',
-        player_id='<player_id>',
+        values=dict(player_id='<player_id>'),
     )
 
     @pre_dump

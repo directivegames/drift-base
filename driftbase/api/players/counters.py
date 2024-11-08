@@ -44,7 +44,7 @@ class PlayerCounterSchema(ma.Schema):
     first_update = ma.fields.DateTime()
     last_update = ma.fields.DateTime()
     num_updates = ma.fields.Integer()
-    url = AbsoluteUrlFor('player_counters.entry', player_id='<player_id>', counter_id='<counter_id>')
+    url = AbsoluteUrlFor('player_counters.entry', values=dict(player_id='<player_id>', counter_id='<counter_id>'))
     name = ma.fields.String()
     total = ma.fields.Integer()
     periods = ma.fields.Dict()

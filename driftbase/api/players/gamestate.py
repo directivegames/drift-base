@@ -32,12 +32,11 @@ class GameStateSchema(SQLAlchemyAutoSchema):
         include_relationships = True
         strict = True
         model = GameState
+
     gamestate_url = AbsoluteURLFor('player_gamestate.entry',
-                        player_id='<player_id>',
-                        namespace='<namespace>')
+                                   values=dict(player_id='<player_id>', namespace='<namespace>'))
     gamestatehistory_url = AbsoluteURLFor('player_gamestate.historylist',
-                               player_id='<player_id>',
-                               namespace='<namespace>')
+                                          values=dict(player_id='<player_id>', namespace='<namespace>'))
 
 
 class GameStateHistorySchema(SQLAlchemyAutoSchema):
@@ -46,10 +45,10 @@ class GameStateHistorySchema(SQLAlchemyAutoSchema):
         include_relationships = True
         strict = True
         model = GameStateHistory
+
     gamestatehistoryentry_url = AbsoluteURLFor('player_gamestate.historyentry',
-                                    player_id='<player_id>',
-                                    namespace='<namespace>',
-                                    gamestatehistory_id='<gamestatehistory_id>')
+                                               values=dict(player_id='<player_id>', namespace='<namespace>',
+                                                           gamestatehistory_id='<gamestatehistory_id>'))
 
 
 @bp.route("/<int:player_id>/gamestates", endpoint="list")

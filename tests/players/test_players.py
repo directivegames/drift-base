@@ -106,8 +106,8 @@ class PlayersTest(BaseCloudkitTest):
         self.auth()
         player_name = "Spicy Meatball"
         self.patch(self.endpoints["my_player"], data={"name": player_name})
-        for search_string in (
-        player_name, "*icy*"):  # Test that both exact, case-sensitive and valid fuzzy searches return a result
+        # Test that both exact, case-sensitive and valid fuzzy searches return a result
+        for search_string in (player_name, "*icy*"):
             players = self.get(self.endpoints["players"] + "?player_name=%s" % search_string).json()
             self.assertIsInstance(players, list)
             self.assertTrue(len(players) == 1)

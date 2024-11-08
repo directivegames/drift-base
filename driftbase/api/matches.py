@@ -3,6 +3,7 @@ import http.client as http_client
 import logging
 import marshmallow as ma
 import json
+from math import ceil
 from contextlib import ExitStack
 from flask import url_for, g, jsonify, current_app
 from flask.views import MethodView
@@ -258,7 +259,7 @@ class MatchesAPI(MethodView):
                                     MatchTeam.match_id == Match.match_id)
                 )
                 is_winner = case(
-                    [(cast(Match.match_statistics['winning_team_id'].astext, Integer) == MatchTeam.team_id, True)],
+                    (cast(Match.match_statistics['winning_team_id'].astext, Integer) == MatchTeam.team_id, True),
                     else_=False
                 ).label("is_winner")
                 matches_query = matches_query.add_columns(is_winner)
@@ -285,12 +286,16 @@ class MatchesAPI(MethodView):
 
             matches_query = matches_query.order_by(-Match.match_id)
 
-            matches_result = matches_query.paginate(page=args["page"], per_page=args["per_page"], error_out=True, max_per_page=num_rows)
+            matches_total = matches_query.count()
+            per_page = min(args["per_page"], num_rows)
+            offset = (int(args["page"]) - 1) * per_page
+            matches_query = matches_query.limit(per_page).offset(offset)
+            matches_result = matches_query.all()
 
             include_match_players = args["include_match_players"]
 
             matches = []
-            for match_row in matches_result.items:
+            for match_row in matches_result:
                 if isinstance(match_row, Row):
                     if hasattr(match_row, 'Match'):
                         match_record = match_row.Match.as_dict()
@@ -385,10 +390,10 @@ class MatchesAPI(MethodView):
 
             ret = {
                 "items": matches,
-                "total": matches_result.total,
-                "page": matches_result.page,
-                "pages": matches_result.pages,
-                "per_page": matches_result.per_page,
+                "total": matches_total,
+                "page": args["page"],
+                "pages": ceil(matches_total / per_page),
+                "per_page": per_page
             }
 
             return jsonify(ret)

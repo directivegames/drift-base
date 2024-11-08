@@ -3,7 +3,8 @@ from base64 import urlsafe_b64encode
 
 import marshmallow as ma
 import requests
-from flask import request, escape
+from flask import request
+from markupsafe import escape
 from drift.blueprint import abort
 import http.client as http_client
 from werkzeug.exceptions import Unauthorized
@@ -19,6 +20,7 @@ psn_issuer_urls = {
     "test": "https://auth.api.prod-qa.sonyentertainmentnetwork.com/2.0/oauth/token",
     "live": "https://auth.api.sonyentertainmentnetwork.com/2.0/oauth/token",
 }
+
 
 class PsnProviderAuthDetailsSchema(ma.Schema):
     psn_id = ma.fields.String(required=True)

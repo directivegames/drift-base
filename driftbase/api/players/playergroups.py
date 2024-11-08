@@ -29,7 +29,7 @@ class PlayerGroupPutRequestSchema(ma.Schema):
 
 class PlayerGroupPlayerSchema(ma.Schema):
     player_id = ma.fields.Integer()
-    player_url = AbsoluteURLFor('players.entry', player_id='<player_id>')
+    player_url = AbsoluteURLFor('players.entry', values=dict(player_id='<player_id>'))
     player_name = ma.fields.String()
     identity_name = ma.fields.String()
 

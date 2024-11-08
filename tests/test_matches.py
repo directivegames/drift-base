@@ -1,10 +1,9 @@
-import datetime
+from datetime import datetime, date, timedelta, UTC
 from collections import defaultdict
 
 import http.client as http_client
 
 from drift.test_helpers.systesthelper import uuid_string
-from sqlalchemy.util import timezone
 
 from driftbase.utils.test_utils import BaseMatchTest
 
@@ -94,22 +93,22 @@ class MatchesTest(BaseMatchTest):
         self.assertIn("teams", match)
 
         # Get matches from date
-        resp = self.get("/matches", params={"use_pagination": True, "start_date": datetime.date.today().isoformat()})
+        resp = self.get("/matches", params={"use_pagination": True, "start_date": date.today().isoformat()})
         resp_json = resp.json()
 
         for m in resp_json["items"]:
-            self.assertEqual(datetime.datetime.fromisoformat(m["start_date"]).date(), datetime.date.today())
+            self.assertEqual(datetime.fromisoformat(m["start_date"]).date(), date.today())
 
         # No matches from yesterday
         resp = self.get("/matches", params={"use_pagination": True,
-                                            "start_date": (datetime.date.today() - datetime.timedelta(1)).isoformat()})
+                                            "start_date": (date.today() - timedelta(1)).isoformat()})
         resp_json = resp.json()
 
         assert len(resp_json["items"]) == 0
 
         # No matches from tomorrow
         resp = self.get("/matches", params={"use_pagination": True,
-                                            "start_date": (datetime.date.today() + datetime.timedelta(1)).isoformat()})
+                                            "start_date": (date.today() + timedelta(1)).isoformat()})
         resp_json = resp.json()
 
         assert len(resp_json["items"]) == 0
@@ -168,14 +167,16 @@ class MatchesTest(BaseMatchTest):
             self.put(match_url, data={"status": "completed", "match_statistics":{"winning_team_id": teams[0]["team_id"]}})
 
         # Check winner information is included when asking for a player's matches
-        resp = self.get("/matches", params={"use_pagination": True, "player_id": player_id_1, "start_date": datetime.datetime.now(tz=timezone.utc).date().isoformat()})
+        resp = self.get("/matches", params={"use_pagination": True, "player_id": player_id_1,
+                                            "start_date": datetime.now(UTC).date().isoformat()})
         resp_json = resp.json()
         self.assertEqual(resp_json["items"][0]["match_id"], matches[-1]["match_id"])
         self.assertEqual(resp_json["items"][0]["is_winner"], True)
         self.assertEqual(resp_json["items"][1]["is_winner"], True)
 
         # Check winner information is included when asking for a player's matches
-        resp = self.get("/matches", params={"use_pagination": True, "player_id": player_id_2, "start_date": datetime.datetime.now(tz=timezone.utc).date().isoformat()})
+        resp = self.get("/matches", params={"use_pagination": True, "player_id": player_id_2,
+                                            "start_date": datetime.now(UTC).date().isoformat()})
         resp_json = resp.json()
         self.assertEqual(resp_json["items"][0]["match_id"], matches[-1]["match_id"])
         self.assertEqual(resp_json["items"][0]["is_winner"], False)

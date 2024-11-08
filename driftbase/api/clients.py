@@ -65,9 +65,8 @@ class ClientSchema(SQLAlchemyAutoSchema):
         model = Client
         exclude = ()
 
-    client_url = AbsoluteURLFor('clients.entry',
-                     doc="Fully qualified URL of the client resource",
-                     client_id='<client_id>')
+    client_url = AbsoluteURLFor('clients.entry', doc="Fully qualified URL of the client resource",
+                                values=dict(client_id='<client_id>'))
 
 
 class ClientPostRequestSchema(ma.Schema):
