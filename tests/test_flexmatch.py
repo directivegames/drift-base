@@ -8,8 +8,7 @@ from driftbase.utils.test_utils import BaseCloudkitTest
 from unittest.mock import patch
 from driftbase import flexmatch
 from driftbase.resources.flexmatch import FLEXMATCH_DEFAULTS
-from drift.core.extensions.driftconfig import get_feature_switch
-from datetime import datetime, date, timezone, timedelta
+from datetime import timedelta
 import uuid
 import json
 
@@ -569,7 +568,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
         self.auth(username)
         response = self.get(ticket_url, expected_status_code=http_client.OK).json()
         self.assertEqual(response["ticket_status"], "COMPLETED")
-        time.sleep(1)
+        time.sleep(1.1)
         self.get(ticket_url, expected_status_code=http_client.NOT_FOUND)
 
     def test_extra_matchmaking_data_is_included_in_ticket(self):

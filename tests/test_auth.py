@@ -168,6 +168,7 @@ uuid_auth_with_provider_data = {
     'automatic_account_creation': True
 }
 
+
 class _BasePlayerAttributeTestCase(DriftBaseTestCase):
     def _old_authenticate_without_roles(self, username, password, automatic_account_creation=True):
         """ Stripped down version of the old authentication method, i.e. before we added role 'player' by default. """
@@ -185,8 +186,7 @@ class _BasePlayerAttributeTestCase(DriftBaseTestCase):
         g.db.add(my_identity)
         g.db.flush()
         identity_id = my_identity.identity_id
-        my_user = g.db.query(User).get(my_identity.user_id)
-        self.assertIsNone(my_user)
+        self.assertIsNone(my_identity.user_id)
 
         my_user = User(user_name=username)
         g.db.add(my_user)
