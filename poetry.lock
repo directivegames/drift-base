@@ -4271,4 +4271,4 @@ reference = "directive"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "d4084bac92b4cea51539fa39202eb03f8bbab9c6da866597ae2ca7cd0f84fd46"
+content-hash = "4bfc0580a0ef030677eebaf6d91c7f520481ba2cc7edb15ea8e93f73e0c27ba5"
