@@ -90,7 +90,7 @@ def authenticate_with_provider(auth_info):
 
 def authenticate(username, password, automatic_account_creation=True, fallback_username=None):
     # There's a bunch of possible race conditions that can happen if we don't lock here, so we lock on the username
-    with g.redis.lock(f"user_login_lock:{username}"):
+    with g.redis.lock(f"user_login_lock:{username}", timeout=10):
         return _authenticate(username, password, automatic_account_creation, fallback_username)
 
 
