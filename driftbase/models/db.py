@@ -90,6 +90,7 @@ class UserIdentity(ModelBase):
     __tablename__ = "ck_user_identities"
 
     identity_id = Column(Integer, primary_key=True)
+    # FIXME: Figure out why name has no unique constraint
     name = Column(String(200), index=True)
     identity_type = Column(String(50), index=True)
     password_hash = Column(String(200))
