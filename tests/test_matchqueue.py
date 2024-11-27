@@ -188,7 +188,7 @@ class MatchQueueTest(BaseMatchTest):
         self.make_player()
         # mock out the utcnow call so that we can put the players 'offline'
         with patch("driftbase.matchqueue.utcnow") as mock_date:
-            mock_date.return_value = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+            mock_date.return_value = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=5)
 
             data = {"player_id": self.player_id}
             r = self.post(matchqueue_url, data=data, expected_status_code=http_client.CREATED)

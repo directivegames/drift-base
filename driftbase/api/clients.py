@@ -42,7 +42,7 @@ def drift_init_extension(app, **kwargs):
 
 # for mocking
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 client_descriptions = {
@@ -163,6 +163,8 @@ class ClientsAPI(MethodView):
                         ip_address=request.remote_addr,
                         client_type=args.get("client_type"),
                         identity_id=identity_id,
+                        create_date=datetime.datetime.now(datetime.UTC),
+                        heartbeat=datetime.datetime.now(datetime.UTC),
                         status="active"
                         )
         g.db.add(client)

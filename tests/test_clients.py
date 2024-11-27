@@ -56,7 +56,7 @@ class ClientsTest(BaseCloudkitTest):
         self.assertEqual(r.json()["num_heartbeats"], 2)
 
         with patch("driftbase.api.clients.utcnow") as mock_date:
-            mock_date.return_value = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+            mock_date.return_value = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=5)
             r = self.put(client_uri, expected_status_code=http_client.NOT_FOUND)
 
     def test_platform(self):

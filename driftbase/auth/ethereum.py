@@ -23,7 +23,7 @@ DEFAULT_TIMESTAMP_LEEWAY = 60
 
 
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 class EthereumProviderAuthDetailsSchema(ma.Schema):

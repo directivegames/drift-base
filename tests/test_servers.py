@@ -160,7 +160,7 @@ class ServersTest(DriftBaseTestCase):
         url = resp["url"]
         resp = self.get(url).json()
         self.assertEqual(resp["heartbeat_count"], 0)
-        heartbeat_date = datetime.datetime.fromisoformat(resp["heartbeat_date"][:-1]) - datetime.timedelta(
+        heartbeat_date = datetime.datetime.fromisoformat(resp["heartbeat_date"]) - datetime.timedelta(
             seconds=1)  # Insert fudge because of clock drift on vm's
         heartbeat_url = self.get(url).json()["heartbeat_url"]
         resp = self.put(heartbeat_url).json()
@@ -168,7 +168,7 @@ class ServersTest(DriftBaseTestCase):
 
         resp = self.get(url).json()
         self.assertEqual(resp["heartbeat_count"], 1)
-        new_heartbeat_date = datetime.datetime.fromisoformat(resp["heartbeat_date"][:-1])
+        new_heartbeat_date = datetime.datetime.fromisoformat(resp["heartbeat_date"])
         self.assertTrue(new_heartbeat_date > heartbeat_date)
 
     def test_server_heartbeat_timeout(self):

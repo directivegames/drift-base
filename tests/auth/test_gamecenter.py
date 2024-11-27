@@ -68,20 +68,21 @@ gc_prod_2_cer = b'0\x82\x04\xe70\x82\x03\xcf\xa0\x03\x02\x01\x02\x02\x10qN\x1ai;
 class DateInside(datetime.datetime):
     @classmethod
     def utcnow(cls):
-        return datetime.datetime(2016, 1, 1, 10, 10, 10)
+        return datetime.datetime(2016, 1, 1, 10, 10, 10, tzinfo=datetime.UTC)
 
     @classmethod
-    def now(cls, tz = None):
-        return datetime.datetime(2016, 1, 1, 10, 10, 10)
+    def now(cls, tz=datetime.UTC):
+        return datetime.datetime(2016, 1, 1, 10, 10, 10, tzinfo=tz)
+
 
 class DateOutside(datetime.datetime):
     @classmethod
     def utcnow(cls):
-        return datetime.datetime(2018, 1, 1, 10, 10, 10)
+        return datetime.datetime(2018, 1, 1, 10, 10, 10, tzinfo=datetime.UTC)
 
     @classmethod
-    def now(cls, tz = None):
-        return datetime.datetime(2018, 1, 1, 10, 10, 10)
+    def now(cls, tz = datetime.UTC):
+        return datetime.datetime(2018, 1, 1, 10, 10, 10, tzinfo=tz)
 
 
 class GameCenterCase(unittest.TestCase):

@@ -1,3 +1,4 @@
+import datetime
 import http.client
 import http.client as http_client
 import logging
@@ -127,6 +128,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         raise RuntimeError("service_user not found in config!")
 
     # if we do not have an identity, create one along with a user and a player
+    now = datetime.datetime.now(datetime.UTC)
     if my_identity is None:
         # if this is a service user make sure the password
         # matches before creating the user
@@ -142,7 +144,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         else:
             create_roles.add("player")
 
-        my_identity = UserIdentity(name=username, identity_type=identity_type)
+        my_identity = UserIdentity(name=username, identity_type=identity_type, create_date=now)
 
         my_identity.set_password(password)
         if is_old:
@@ -193,7 +195,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
                 f"User Identity '{my_identity.identity_id}' has no user"
                 " but automatic_account_creation is false so user gets no user account")
         else:
-            my_user = User(user_name=username)
+            my_user = User(user_name=username, create_date=now)
             g.db.add(my_user)
             # this is so we can access the auto-increment key value
             g.db.flush()
@@ -228,7 +230,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
             .first()
 
         if my_player is None:
-            my_player = CorePlayer(user_id=user_id, player_name=u"")
+            my_player = CorePlayer(user_id=user_id, player_name=u"", create_date=now)
             g.db.add(my_player)
             # this is so we can access the auto-increment key value
             g.db.flush()

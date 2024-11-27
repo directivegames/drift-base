@@ -29,23 +29,26 @@ bp = Blueprint('players', __name__, url_prefix='/players')
 
 endpoints = Endpoints()
 
+
 def _get_shoutout():
     return current_app.extensions["shoutout"]
 
+
 def _get_db():
     return g.db
+
 
 class PlayersListArgs(ma.Schema):
     class Meta:
         strict = True
 
     player_id = ma.fields.List(
-        ma.fields.Integer(), metadata=dict(description="Player ID's to filter for"
-    ))
+        ma.fields.Integer(), metadata=dict(description="Player ID's to filter for")
+    )
     rows = ma.fields.Integer(metadata=dict(description="Number of rows to return, maximum of 100"))
     player_group = ma.fields.String(
-        metadata=dict(description="The player group the players should belong to (see player-group api)"
-    ))
+        metadata=dict(description="The player group the players should belong to (see player-group api)")
+    )
     key = ma.fields.List(ma.fields.String(), metadata=dict(description="Only return these columns"))
     player_name = ma.fields.String(
         metadata=dict(description="Player name to search for")
@@ -56,13 +59,15 @@ class PlayerPatchArgs(ma.Schema):
     class Meta:
         strict = True
 
-    name = ma.fields.String(metadata=dict(description="New name for the player. Can be between 1 and 20 characters long."))
+    name = ma.fields.String(metadata=dict(
+        description="New name for the player. Can be between 1 and 20 characters long.")
+    )
 
     @validates('name')
     def validate(self, s):
         min_length = 1
         max_length = 20
-        if len(s) >= min_length and len(s) <= max_length:
+        if min_length <= len(s) <= max_length:
             return
         raise ValidationError(
             "String must be between %i and %i characters long"
@@ -114,6 +119,7 @@ def _handle_set_player_name_from_seasons(*args, **kwargs):
 # TODO: Have this configured on a per product level and use drift config to specify it.
 MIN_NAME_LEN = 1
 MAX_NAME_LEN = 20
+
 
 @bp.route('', endpoint='list')
 class PlayersListAPI(MethodView):
