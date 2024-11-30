@@ -27,13 +27,23 @@ class TestEthereumLoadProviderDetails(unittest.TestCase):
         with self.assertRaises(InvalidRequestException):
             ethereum._load_provider_details(dict(token=[]))
         with self.assertRaises(InvalidRequestException):
-            ethereum._load_provider_details(dict(token='abc', other=3))
+            ethereum._load_provider_details(dict(token='abc', other=3))        
+        with self.assertRaises(InvalidRequestException):
+            ethereum._load_provider_details(dict(message='abc', signer='bob', signature='xyz', chain_id=1))
+        with self.assertRaises(InvalidRequestException):
+            ethereum._load_provider_details(dict(message='abc', signer='bob', signature='xyz', contract_signer_type='foo'))
 
     def test_loads_provider_details(self):
         details = ethereum._load_provider_details(dict(message='abc', signer='bob', signature='xyz'))
         self.assertEqual(details['message'], 'abc')
         self.assertEqual(details['signer'], 'bob')
         self.assertEqual(details['signature'], 'xyz')
+        self.assertEqual(details['chain_id'], None)
+        self.assertEqual(details['contract_signer_type'], None)
+
+        details = ethereum._load_provider_details(dict(message='abc', signer='bob', signature='xyz', chain_id=1, contract_signer_type='foo'))
+        self.assertEqual(details['chain_id'], 1)
+        self.assertEqual(details['contract_signer_type'], 'foo')
 
 
 class TestEthereumValidate(unittest.TestCase):
@@ -183,3 +193,65 @@ class TestEthereumEIP4361RunAuthentication(unittest.TestCase):
                 signature = self.signature.replace('0x03', '0x06')
                 ethereum._run_ethereum_message_validation(self.address, self.message, signature)
             self.assertEqual("Bad signature", str(err.exception.msg))
+
+
+class TestERC1271Authentication(unittest.TestCase):
+    def setUp(self):
+        self.address = '0x010F33740d3b265989b6a81AEBAC4E4683281732'
+        self.message = '{\n  "message": "Hello, world!",\n  "timestamp": "2024-11-30T13:00:04.468Z"\n}'
+        self.signature = '0x00020201cff469e561d9dce5b1185cd2ac1fa961f8fbde6100432b5f51aa60f5e255c2ea7f9e8a3e8a7e26279aca73457477f89ff825aba0460c1bfbe187453b580e809357b324b1312b7522ad09514cc924772542b2e032599d1c02030001fdaa99c4f342f74e4e10e9b4fcd7a230adcfcd15453ec02d4e7ab10c1a78f25e1f35993adde6675267322a8a0c288f695c09475b274fd516f5806888ff57921e1c02'
+        self.timestamp = datetime.datetime.fromisoformat('2024-11-30T13:00:04.468')
+        self.chain_id = 13371
+        self.rpc = 'https://rpc.immutable.com'
+        self.correct_params = dict(chain_id=self.chain_id, contract_signer_type=ethereum.CONTRACT_SIGNER_ERC1271, signer=self.address, message=self.message, signature=self.signature)
+
+
+    def test_authenticates_when_signature_matches(self):
+        with mock.patch('driftbase.auth.ethereum.utcnow') as now:
+            now.return_value = self.timestamp + datetime.timedelta(seconds=5)
+            with mock.patch('driftbase.auth.ethereum.get_provider_config') as config:
+                config.return_value = dict(rpcs={13371: self.rpc})
+                self.assertEqual(self.address.lower(),
+                                ethereum._validate_contract_message(**self.correct_params))
+                
+
+    def test_authenticates_with_invalid_timestamp(self):        
+        with mock.patch('driftbase.auth.ethereum.get_provider_config') as config:
+            config.return_value = dict(rpcs={13371: self.rpc})
+            # expired timestamp
+            with mock.patch('driftbase.auth.ethereum.utcnow') as now:
+                now.return_value = self.timestamp + datetime.timedelta(seconds=ethereum.DEFAULT_TIMESTAMP_LEEWAY + 1)
+                with self.assertRaises(UnauthorizedException):                    
+                    ethereum._validate_contract_message(**self.correct_params)
+
+            # timestamp in the future
+            with mock.patch('driftbase.auth.ethereum.utcnow') as now:
+                now.return_value = self.timestamp - datetime.timedelta(seconds=ethereum.DEFAULT_TIMESTAMP_LEEWAY + 1)
+                with self.assertRaises(UnauthorizedException):                    
+                    ethereum._validate_contract_message(**self.correct_params)
+
+
+    def test_authenticates_with_invalid_params(self):
+        with mock.patch('driftbase.auth.ethereum.utcnow') as now:
+            now.return_value = self.timestamp + datetime.timedelta(seconds=5)
+            with mock.patch('driftbase.auth.ethereum.get_provider_config') as config:
+                config.return_value = dict(rpcs={13371: self.rpc})
+                # invalid chain_id
+                with self.assertRaises(InvalidRequestException):                    
+                    ethereum._validate_contract_message(**{**self.correct_params, 'chain_id': 13372})
+
+                # invalid contract signer type
+                with self.assertRaises(InvalidRequestException):
+                    ethereum._validate_contract_message(**{**self.correct_params, 'contract_signer_type': 'foo'})
+
+                # invalid signer address
+                with self.assertRaises(InvalidRequestException):
+                    ethereum._validate_contract_message(**{**self.correct_params, 'signer': '0x35831B43857a9168dE998EACc28a6d8C73641c9D'})
+
+                # invalid message
+                with self.assertRaises(InvalidRequestException):
+                    ethereum._validate_contract_message(**{**self.correct_params, 'message': '{\n  "message": "Hello, world",\n  "timestamp": "2024-11-30T13:00:04.468Z"\n}'})
+
+                # invalid signature
+                with self.assertRaises(InvalidRequestException):
+                    ethereum._validate_contract_message(**{**self.correct_params, 'signature': '0x0002000155a1ee387c1ecdb65d3dda543494d54427cf0594c9812c1ef42a64854c8419491d010c9b4e28d6012f323ce9f646a63139e8c1bffad486858fa11bf0ff3d13131c020201cff469e561d9dce5b1185cd2ac1fa961f8fbde61004312733af15372e033ac7860284f50e824dd1f240d857bd89ba4c045f2201f452d3b266098e9a5b4cc159b24738d7e55245b65537a5f8eb46c8f8af7a8557d2b761c0203'})
