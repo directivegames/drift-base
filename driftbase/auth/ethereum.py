@@ -116,10 +116,11 @@ def _validate_erc1271_signature(chain_id, signer, message, signature, ethereum_c
         }
     ]
     """
-    if chain_id not in rpcs:
+    chain_id_str = str(chain_id)
+    if chain_id_str not in rpcs:
         raise InvalidRequestException(f"Unsupported chain_id: {chain_id}")
     try:
-        rpc = rpcs[chain_id]
+        rpc = rpcs[chain_id_str]
         web3 = Web3(Web3.HTTPProvider(rpc))
         contract = web3.eth.contract(address=signer, abi=abi)
         message_hash = defunct_hash_message(text=message)

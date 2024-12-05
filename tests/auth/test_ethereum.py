@@ -210,14 +210,14 @@ class TestERC1271Authentication(unittest.TestCase):
         with mock.patch('driftbase.auth.ethereum.utcnow') as now:
             now.return_value = self.timestamp + datetime.timedelta(seconds=5)
             with mock.patch('driftbase.auth.ethereum.get_provider_config') as config:
-                config.return_value = dict(rpcs={13371: self.rpc})
+                config.return_value = dict(rpcs={str(self.chain_id): self.rpc})
                 self.assertEqual(self.address.lower(),
                                 ethereum._validate_contract_message(**self.correct_params))
                 
 
     def test_authenticates_with_invalid_timestamp(self):        
         with mock.patch('driftbase.auth.ethereum.get_provider_config') as config:
-            config.return_value = dict(rpcs={13371: self.rpc})
+            config.return_value = dict(rpcs={str(self.chain_id): self.rpc})
             # expired timestamp
             with mock.patch('driftbase.auth.ethereum.utcnow') as now:
                 now.return_value = self.timestamp + datetime.timedelta(seconds=ethereum.DEFAULT_TIMESTAMP_LEEWAY + 1)
@@ -235,7 +235,7 @@ class TestERC1271Authentication(unittest.TestCase):
         with mock.patch('driftbase.auth.ethereum.utcnow') as now:
             now.return_value = self.timestamp + datetime.timedelta(seconds=5)
             with mock.patch('driftbase.auth.ethereum.get_provider_config') as config:
-                config.return_value = dict(rpcs={13371: self.rpc})
+                config.return_value = dict(rpcs={str(self.chain_id): self.rpc})
                 # invalid chain_id
                 with self.assertRaises(InvalidRequestException):                    
                     ethereum._validate_contract_message(**{**self.correct_params, 'chain_id': 13372})
