@@ -30,7 +30,7 @@ def drift_init_extension(app, **kwargs):
     endpoints.init_app(app)
 
 
-default_eventlog_config = dict(eventlog=dict(max_batch_size=5, events_blacklist=['drift.*']))
+default_eventlog_config = dict(eventlog=dict(max_batch_size=5, shoutout_block_list=[]))
 
 
 def _get_shoutout():
@@ -84,17 +84,23 @@ class EventsAPI(MethodView):
         
         if get_feature_switch('enable_eventlog_shoutout_forwarding') and is_service:
             events_to_shoutout = defaultdict(list)
-            events_blacklist = get_tenant_config_value('eventlog', 'events_blacklist',
+            shoutout_block_list = get_tenant_config_value('eventlog', 'shoutout_block_list',
                                                        defaults=default_eventlog_config)
             
-            
             for event in events:
+                event_name = event.get("event_name")
+                
+                # explicitly ignore drift events
+                if event_name and event_name.startswith("drift."):
+                    continue
+                
                 if (
-                    (event_name := event.get("event_name"))
-                    and events_blacklist
-                    and any(fnmatch.fnmatch(event_name, blocked_event) for blocked_event in events_blacklist)
+                    event_name
+                    and shoutout_block_list
+                    and any(fnmatch.fnmatch(event_name, blocked_event) for blocked_event in shoutout_block_list)
                 ):
                     continue
+                
                 events_to_shoutout[event.get('player_id')].append(event)
             
             shoutout = _get_shoutout().message

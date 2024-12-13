@@ -142,7 +142,7 @@ class EventsTest(DriftBaseTestCase):
         ts = datetime.datetime.now().isoformat() + "Z"
         with mock.patch("driftbase.api.events._get_shoutout", return_value=shoutout_mock):
             with mock.patch("driftbase.api.events.get_feature_switch", return_value=True):
-                # default blacklist
+                # default block list
                 self.post(
                     endpoint,
                     data=[{"hello": "world", "event_name": "drift.blah", "timestamp": ts}],
@@ -159,10 +159,10 @@ class EventsTest(DriftBaseTestCase):
                 shoutout_mock.message.assert_called_once()
                 shoutout_mock.reset_mock()
                 
-                # with blacklist
+                # with block list
                 with mock.patch(
                     "driftbase.api.events.default_eventlog_config",
-                    dict(eventlog=dict(max_batch_size=5, events_blacklist=["drift.*", "player.battle.damage_dealt"])),
+                    dict(eventlog=dict(max_batch_size=5, shoutout_block_list=["drift.*", "player.battle.damage_dealt"])),
                 ):
                     self.post(
                         endpoint,
