@@ -22,7 +22,6 @@ class EventsTest(DriftBaseTestCase):
             data=[{"hello": "world"}],
             expected_status_code=http_client.METHOD_NOT_ALLOWED,
         )
-        print(r.json())
         self.assertIn("'event_name'", r.json()["error"]["description"])
 
         self.post(endpoint, expected_status_code=http_client.UNSUPPORTED_MEDIA_TYPE)
@@ -130,3 +129,69 @@ class EventsTest(DriftBaseTestCase):
             data=[{"hello": "world"}],
             expected_status_code=http_client.CREATED,
         )
+        
+    
+    
+    def test_events_filter(self):
+        self.auth()
+        self.auth_service()
+        self.assertIn("eventlogs", self.endpoints)
+        endpoint = self.endpoints["eventlogs"]
+        
+        shoutout_mock = mock.Mock()
+        ts = datetime.datetime.now().isoformat() + "Z"
+        with mock.patch("driftbase.api.events._get_shoutout", return_value=shoutout_mock):
+            with mock.patch("driftbase.api.events.get_feature_switch", return_value=True):
+                # no blacklist
+                self.post(
+                    endpoint,
+                    data=[{"hello": "world", "event_name": "drift.blah", "timestamp": ts}],
+                    expected_status_code=http_client.CREATED,
+                )
+                shoutout_mock.message.assert_called_once()
+                shoutout_mock.reset_mock()
+                
+                # with blacklist
+                with mock.patch(
+                    "driftbase.api.events.default_eventlog_config",
+                    dict(eventlog=dict(max_batch_size=5, events_blacklist=["drift.*", "player.battle.damage_dealt"])),
+                ):
+                    self.post(
+                        endpoint,
+                        data=[{"hello": "world", "event_name": "dummy", "timestamp": ts}],
+                        expected_status_code=http_client.CREATED,
+                    )
+                    shoutout_mock.message.assert_called_once()
+                    shoutout_mock.reset_mock()
+
+                    self.post(
+                        endpoint,
+                        data=[{"hello": "world", "event_name": "drift.blah", "timestamp": ts}],
+                        expected_status_code=http_client.CREATED,
+                    )
+                    shoutout_mock.message.assert_not_called()
+                    shoutout_mock.reset_mock()
+                    
+                    self.post(
+                        endpoint,
+                        data=[{"hello": "world", "event_name": "drift.foo.bar", "timestamp": ts}],
+                        expected_status_code=http_client.CREATED,
+                    )
+                    shoutout_mock.message.assert_not_called()
+                    shoutout_mock.reset_mock()
+                    
+                    self.post(
+                        endpoint,
+                        data=[{"hello": "world", "event_name": "player.battle.damage_dealt", "timestamp": ts}],
+                        expected_status_code=http_client.CREATED,
+                    )
+                    shoutout_mock.message.assert_not_called()
+                    shoutout_mock.reset_mock()
+                    
+                    self.post(
+                        endpoint,
+                        data=[{"hello": "world", "event_name": "player.battle.damage_dealt.foo", "timestamp": ts}],
+                        expected_status_code=http_client.CREATED,
+                    )
+                    shoutout_mock.message.assert_called_once()
+                    shoutout_mock.reset_mock()

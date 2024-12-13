@@ -4,6 +4,7 @@ import json
 import logging
 from collections import defaultdict
 from json import JSONDecodeError
+import fnmatch
 
 from flask import request, url_for, jsonify, current_app
 from flask.views import MethodView
@@ -27,6 +28,13 @@ eventlogger = logging.getLogger("eventlog")
 def drift_init_extension(app, **kwargs):
     app.register_blueprint(bp)
     endpoints.init_app(app)
+
+
+default_eventlog_config = dict(eventlog=dict(max_batch_size=5, events_blacklist=[]))
+
+
+def _get_shoutout():
+    return current_app.extensions["shoutout"]
 
 
 @bp.route("", endpoint="list")
@@ -73,14 +81,25 @@ class EventsAPI(MethodView):
             else:
                 event["player_id"] = player_id  # Always override!
             eventlogger.info("eventlog", extra={"extra": event})
-
+        
         if get_feature_switch('enable_eventlog_shoutout_forwarding') and is_service:
             events_to_shoutout = defaultdict(list)
-            for event in [e for e in events if not e.get('event_name', '').startswith('drift.')]:
+            events_blacklist = get_tenant_config_value('eventlog', 'events_blacklist',
+                                                       defaults=default_eventlog_config)
+            
+            
+            for event in events:
+                if (
+                    (event_name := event.get("event_name"))
+                    and events_blacklist
+                    and any(fnmatch.fnmatch(event_name, blocked_event) for blocked_event in events_blacklist)
+                ):
+                    continue
                 events_to_shoutout[event.get('player_id')].append(event)
-            shoutout = current_app.extensions.get('shoutout').message
+            
+            shoutout = _get_shoutout().message
             batch_size = get_tenant_config_value('eventlog', 'max_batch_size',
-                                                 defaults=dict(eventlog=dict(max_batch_size=5)))
+                                                 defaults=default_eventlog_config)
             for player_id, events in events_to_shoutout.items():
                 if not batch_size:
                     data = {"events": events}
