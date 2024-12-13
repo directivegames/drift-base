@@ -30,7 +30,7 @@ def drift_init_extension(app, **kwargs):
     endpoints.init_app(app)
 
 
-default_eventlog_config = dict(eventlog=dict(max_batch_size=5, events_blacklist=[]))
+default_eventlog_config = dict(eventlog=dict(max_batch_size=5, events_blacklist=['drift.*']))
 
 
 def _get_shoutout():
