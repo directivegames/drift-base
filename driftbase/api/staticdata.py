@@ -1,15 +1,16 @@
 import json
 import logging
+import os
 from http.client import SERVICE_UNAVAILABLE
 
 import marshmallow as ma
-import requests
 from drift.blueprint import Blueprint
 from drift.blueprint import abort
 from drift.core.extensions.urlregistry import Endpoints
-from driftconfig.util import get_drift_config
 from flask import g, url_for, jsonify
 from flask.views import MethodView
+
+from driftbase.s3_client import S3Client
 
 log = logging.getLogger(__file__)
 
@@ -17,9 +18,14 @@ bp = Blueprint('staticdata', __name__, url_prefix='/staticdata')
 endpoints = Endpoints()
 
 
+def _get_tenant_name():
+    return g.conf.tenant.get('tenant_name')
+
+
 def drift_init_extension(app, **kwargs):
     app.register_blueprint(bp)
     endpoints.init_app(app)
+
 
 #
 # Expected config:
@@ -75,10 +81,12 @@ class StaticDataAPI(MethodView):
                 content = g.redis.get(url)
                 if content:
                     return json.loads(content)
-                r = requests.get(url)
-                r.raise_for_status()
-                g.redis.set(url, r.text, expire=50)
-                return r.json()
+                s3 = S3Client(os.environ.get('AWS_REGION'), _get_tenant_name())
+                bucket, key = url.split('/', 3)[2:]
+                response = s3.get_object(Bucket=bucket, Key=key)
+                content = response['Body'].read().decode('utf-8')
+                g.redis.set(url, content, expire=50)
+                return json.loads(content)
 
         data["static_data_urls"] = []
 
