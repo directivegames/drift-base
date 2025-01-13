@@ -24,15 +24,21 @@ class CfgTest(DriftBaseTestCase):
     """
 
     def test_get_static_data(self):
-        from driftbase.api.staticdata import DATA_URL, INDEX_URL, CDN_LIST
         self.auth()
         endpoint = self.endpoints.get('static_data')
         self.assertIsNotNone(endpoint, "'static_data' endpoint not registered.")
 
         # Fudge the config a bit
-        get_config().tenant["static_data_refs_legacy"] = {
+        get_config().tenant["staticdata"] = {
             "repository": "borko-games/the-ossomizer",
             "revision": "refs/heads/developmegood",
+        }
+        cdn_index_root = "https://s3-eu-west-1.amazonaws.com/directive-tiers.dg-api.com/static-data/"
+        cdn_data_root = "https://static-data.dg-api.com/"
+        cdn_list = [("s3", cdn_data_root)]
+        get_config().tier["staticdata"] = {
+            "index_root": cdn_index_root,
+            "cdn_list": cdn_list,
         }
 
         ref1 = {"commit_id": "abcd", "ref": "refs/heads/developmegood"}
@@ -42,7 +48,7 @@ class CfgTest(DriftBaseTestCase):
         def mock_s3_response():
             responses.add(
                 responses.GET,
-                '{}borko-games/the-ossomizer/index.json'.format(INDEX_URL),
+                '{}borko-games/the-ossomizer/index.json'.format(cdn_index_root),
                 body=json.dumps({"index": [ref1, ref2]}),
                 status=200,
                 content_type='application/json'
@@ -54,8 +60,8 @@ class CfgTest(DriftBaseTestCase):
         urls = resp.get("static_data_urls")
         self.assertIsNotNone(urls, "The 'static_data_urls' key is missing")
         self.assertTrue(len(urls) > 0, "There should be at least one entry in 'static_data_urls'.")
-        self.assertEqual(urls[0]["data_root_url"],
-                         u"{}{}/data/{}/".format(DATA_URL, "borko-games/the-ossomizer", "abcd"))
+        self.assertEqual(urls[0]["cdn_list"][0]["data_root_url"],
+                         u"{}{}/data/{}/".format(cdn_data_root, "borko-games/the-ossomizer", "abcd"))
         self.assertEqual(urls[0]["origin"], "Tenant config")
         self.assertEqual(urls[0]["commit_id"], ref1["commit_id"], "I should have gotten the default ref.")
 
@@ -70,7 +76,7 @@ class CfgTest(DriftBaseTestCase):
         self.assertEqual(urls[0]["commit_id"], ref1["commit_id"], "I should have gotten the default ref.")
 
         # Turn on pin feature
-        get_config().tenant["static_data_refs_legacy"]["allow_client_pin"] = True
+        get_config().tenant["staticdata"]["allow_client_pin"] = True
         mock_s3_response()
         resp = self.get(endpoint + "?static_data_ref=refs/tags/v0.1.4").json()
         urls = resp.get("static_data_urls")
@@ -79,7 +85,7 @@ class CfgTest(DriftBaseTestCase):
 
         # Test cdn list
         test_root = 'http://test-cdn.com/the/root'
-        CDN_LIST.append(['test-cdn', test_root])
+        cdn_list.append(['test-cdn', test_root])
         mock_s3_response()
         resp = self.get(endpoint).json()
         urls = resp.get('static_data_urls')
