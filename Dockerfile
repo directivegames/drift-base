@@ -19,7 +19,7 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PYTHONUSERBASE=/root/.app
 
 RUN python -m pip install --upgrade pip
-RUN pip install poetry
+RUN pip install "poetry<2"
 RUN pip install --user --ignore-installed --no-warn-script-location gunicorn
 
 COPY pyproject.toml poetry.lock ./

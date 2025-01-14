@@ -14,14 +14,14 @@ TIER_DEFAULTS = {
 
 # NOTE THIS IS DEPRECATED AND NEEDS TO BE UPGRADED TO NU STYLE PROVISIONING LOGIC
 def provision(config, args, recreate=False):
-    params = get_parameters(config, args, TIER_DEFAULTS.keys(), "staticdata")
+    params = get_parameters(config, args, TIER_DEFAULTS.keys(), "static_data")
 
     # Static data repo is per product
-    if 'staticdata_defaults' not in config.product:
-        config.product['staticdata_defaults'] = params
+    if 'static_data_defaults' not in config.product:
+        config.product['static_data_defaults'] = params
 
     # Create entry for this tenant
-    config.tenant['static_data_refs_legacy'] = config.product['staticdata_defaults']
+    config.tenant['staticdata'] = config.product['static_data_defaults']
 
 
 def healthcheck():

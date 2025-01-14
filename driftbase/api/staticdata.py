@@ -1,12 +1,16 @@
 import json
 import logging
+import os
+from http.client import SERVICE_UNAVAILABLE
+
 import marshmallow as ma
-import requests
+from drift.blueprint import Blueprint
+from drift.blueprint import abort
+from drift.core.extensions.urlregistry import Endpoints
 from flask import g, url_for, jsonify
 from flask.views import MethodView
-from drift.blueprint import Blueprint
 
-from drift.core.extensions.urlregistry import Endpoints
+from driftbase.s3_client import S3Client
 
 log = logging.getLogger(__file__)
 
@@ -14,23 +18,37 @@ bp = Blueprint('staticdata', __name__, url_prefix='/staticdata')
 endpoints = Endpoints()
 
 
+def _get_tenant_name():
+    return g.conf.tenant.get('tenant_name')
+
+
 def drift_init_extension(app, **kwargs):
     app.register_blueprint(bp)
     endpoints.init_app(app)
 
 
-# Assumption: The static data CDN is here:
-INDEX_URL = "https://s3-eu-west-1.amazonaws.com/directive-tiers.dg-api.com/static-data/"
-DATA_URL = "https://static-data.dg-api.com/"
-
-CDN_LIST = [
-    ['cloudfront', DATA_URL],
-    ['alicloud', 'http://directive-tiers.oss-cn-shanghai.aliyuncs.com/static-data/'],
-]
-
+#
+# Expected config:
+#
+# tier: {
+#     staticdata: {
+#         index_root: S3_INDEX_URL,
+#         cdn_list: [
+#             ('name', EXTERNAL_DATA_URL),
+#         ],
+#     },
+# }
+# tenant: {
+#     staticdata: {
+#         repository: "ORGANIZATION/PRODUCT",
+#         ref: "refs/heads/BRANCH_OR_TAG",
+#         allow_client_pin: False,
+#     },
+# }
+#
 
 def get_static_data_ids():
-    data = g.conf.tenant.get('static_data_refs_legacy')
+    data = g.conf.tenant.get('staticdata')
     if data:
         origin = "Tenant config"
         repo = data['repository']
@@ -63,17 +81,26 @@ class StaticDataAPI(MethodView):
                 content = g.redis.get(url)
                 if content:
                     return json.loads(content)
-                r = requests.get(url)
-                r.raise_for_status()
-                g.redis.set(url, r.text, expire=50)
-                return r.json()
+                s3 = S3Client(os.environ.get('AWS_REGION'), _get_tenant_name())
+                bucket, key = url.split('/', 3)[2:]
+                response = s3.get_object(Bucket=bucket, Key=key)
+                content = response['Body'].read().decode('utf-8')
+                g.redis.set(url, content, expire=50)
+                return json.loads(content)
 
         data["static_data_urls"] = []
+
+        tier = g.conf.tier
+        cdn_config = tier.get('staticdata', {})
+        cdn_index_root = cdn_config.get('index_root')
+        if not cdn_index_root:
+            log.error("No 'index_root' specified in tier config for static_data")
+            abort(SERVICE_UNAVAILABLE, description="No 'index_root' specified in tier config for static_data")
 
         for repository, (ref_entry, origin) in get_static_data_ids().items():
 
             # Get the index file from S3 and index it by 'ref'
-            index_file_url = "{}{}/index.json".format(INDEX_URL, repository)
+            index_file_url = "{}{}/index.json".format(cdn_index_root, repository)
             err = None
             try:
                 index_file = get_from_url(index_file_url)
@@ -104,14 +131,18 @@ class StaticDataAPI(MethodView):
                     "revision": ref["ref"],
                     "commit_id": ref["commit_id"],
                     "origin": origin,
-                    "data_root_url": make_data_url(DATA_URL, repository, ref["commit_id"]),
                     "cdn_list": [
                         {'cdn': cdn,
                          'data_root_url': make_data_url(root_url, repository, ref["commit_id"]),
                          }
-                        for cdn, root_url in CDN_LIST
+                        for cdn, root_url in cdn_config.get('cdn_list', [])
                     ],
                 }
+                # legacy single-cdn entry
+                if len(d["cdn_list"]):
+                    # add the first configured url
+                    d["data_root_url"] = d["cdn_list"][0]["data_root_url"]
+
                 data["static_data_urls"].append(d)
 
         return jsonify(data)
