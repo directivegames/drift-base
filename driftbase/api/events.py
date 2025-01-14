@@ -4,6 +4,7 @@ import json
 import logging
 from collections import defaultdict
 from json import JSONDecodeError
+import fnmatch
 
 from flask import request, url_for, jsonify, current_app
 from flask.views import MethodView
@@ -27,6 +28,13 @@ eventlogger = logging.getLogger("eventlog")
 def drift_init_extension(app, **kwargs):
     app.register_blueprint(bp)
     endpoints.init_app(app)
+
+
+default_eventlog_config = dict(eventlog=dict(max_batch_size=5, shoutout_block_list=[]))
+
+
+def _get_shoutout():
+    return current_app.extensions["shoutout"]
 
 
 @bp.route("", endpoint="list")
@@ -73,14 +81,31 @@ class EventsAPI(MethodView):
             else:
                 event["player_id"] = player_id  # Always override!
             eventlogger.info("eventlog", extra={"extra": event})
-
+        
         if get_feature_switch('enable_eventlog_shoutout_forwarding') and is_service:
             events_to_shoutout = defaultdict(list)
-            for event in [e for e in events if not e.get('event_name', '').startswith('drift.')]:
+            shoutout_block_list = get_tenant_config_value('eventlog', 'shoutout_block_list',
+                                                       defaults=default_eventlog_config)
+            
+            for event in events:
+                event_name = event.get("event_name")
+                
+                # explicitly ignore drift events
+                if event_name and event_name.startswith("drift."):
+                    continue
+                
+                if (
+                    event_name
+                    and shoutout_block_list
+                    and any(fnmatch.fnmatch(event_name, blocked_event) for blocked_event in shoutout_block_list)
+                ):
+                    continue
+                
                 events_to_shoutout[event.get('player_id')].append(event)
-            shoutout = current_app.extensions.get('shoutout').message
+            
+            shoutout = _get_shoutout().message
             batch_size = get_tenant_config_value('eventlog', 'max_batch_size',
-                                                 defaults=dict(eventlog=dict(max_batch_size=5)))
+                                                 defaults=default_eventlog_config)
             for player_id, events in events_to_shoutout.items():
                 if not batch_size:
                     data = {"events": events}
