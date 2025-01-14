@@ -21,7 +21,7 @@ def provision(config, args, recreate=False):
         config.product['static_data_defaults'] = params
 
     # Create entry for this tenant
-    config.tenant['static_data_refs'] = config.product['static_data_defaults']
+    config.tenant['staticdata'] = config.product['static_data_defaults']
 
 
 def healthcheck():
