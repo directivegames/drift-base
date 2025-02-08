@@ -18,8 +18,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 ENV PYTHONUSERBASE=/root/.app
 
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_CACHE_DIR=/tmp/.poetry
+
 RUN python -m pip install --upgrade pip
-RUN pip install "poetry<2"
+ENV PATH=/root/.app/bin:/root/.local/bin:$PATH
+RUN pip install pipx
+RUN pipx install poetry
+RUN pipx inject poetry poetry-plugin-export
 RUN pip install --user --ignore-installed --no-warn-script-location gunicorn
 
 COPY pyproject.toml poetry.lock ./
