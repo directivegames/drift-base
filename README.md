@@ -95,6 +95,8 @@ drift-base docker images are automatically built by GutHub Actions on all branch
 
 Versioned images are created in this way. Simply add a version tag to git and an image with correct version will be built. Any image built after this version tag push will export the same version in its root endpoint.
 
+Note that new tags should only be created on the master branch, or a support/M.m branch for previous Major.minor support versions.
+
 To create a new version of drift-base run:
 ```bash
 git tag 1.2.3
