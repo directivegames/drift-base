@@ -1,4 +1,3 @@
-import json
 import logging
 from dateutil import parser
 
@@ -26,43 +25,6 @@ def log_match_event(match_id, player_id, event_type_name, details=None, db_sessi
                        details=details)
     db_session.add(event)
     db_session.commit()
-
-
-class UserCache(object):
-    """
-    Simple cache for user session information
-    """
-    def __init__(self, tenant=None, service_name=None):
-        self.cache = g.redis
-
-    def _key(self, user_id):
-        key = "user:{}".format(user_id)
-        return key
-
-    def get_all(self, user_id):
-        ret = self.cache.get(self._key(user_id))
-        if ret:
-            ret = json.loads(ret)
-            return ret
-        return None
-
-    def set_all(self, user_id, val):
-        self.cache.set(self._key(user_id), json.dumps(val), expire=EXPIRE_SECONDS)
-
-    def get(self, user_id, key):
-        contents = self.get_all(user_id)
-        ret = (contents or {}).get(key, None)
-        return ret
-
-    def set(self, user_id, key, val):
-        contents = self.get_all(user_id)
-        if not contents:
-            contents = {}
-        contents[key] = val
-        self.set_all(user_id, contents)
-
-    def delete(self, user_id):
-        return self.cache.delete(self._key(user_id))
 
 
 def verify_log_request(events, required_keys=None):

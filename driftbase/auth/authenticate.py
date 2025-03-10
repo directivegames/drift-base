@@ -4,11 +4,11 @@ import logging
 import uuid
 
 from drift.blueprint import abort
+from drift.core.resources.redis import PlayerCache, UserCache
 from flask import g, current_app
 from werkzeug.security import check_password_hash
 
 from driftbase.models.db import User, CorePlayer, UserIdentity, UserRole
-from driftbase.utils import UserCache
 
 log = logging.getLogger(__name__)
 
@@ -277,8 +277,8 @@ def _authenticate(username, password, automatic_account_creation=True, fallback_
         player_uuid=player_uuid.hex if player_uuid else None,
         roles=user_roles
     )
-    cache = UserCache()
-    cache.set_all(user_id, ret)
+    UserCache().set_all(user_id, ret)
+    PlayerCache().set_all(player_id, ret)
     if user_id and player_id and "player" in user_roles:
         message_data = ret.copy()
         player_identities = []
