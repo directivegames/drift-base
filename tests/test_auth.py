@@ -1,11 +1,14 @@
-import http.client as http_client
+import random
 
+import flask
 import mock
+from http import HTTPStatus
 from drift.test_helpers.systesthelper import setup_tenant, remove_tenant
 from drift.utils import get_config
 from mock import patch, MagicMock
 
 from driftbase.systesthelper import DriftBaseTestCase
+from driftbase.utils.test_utils import BaseCloudkitTest
 
 
 def setUpModule():
@@ -49,7 +52,7 @@ class AuthTests(DriftBaseTestCase):
 
         # verify error with empty username
         data['provider_details']['username'] = ""
-        self.post('/auth', data=data, expected_status_code=http_client.UNAUTHORIZED)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.UNAUTHORIZED)
 
         # Oculus normal authentication check
         nonce = "140000003DED3A"
@@ -121,7 +124,7 @@ class AuthTests(DriftBaseTestCase):
             mock_auth.return_value.json.return_value = {'response': {'params': {'steamid': u'steamtester'}}}
             with patch('driftbase.auth.steam._call_check_app_ownership') as mock_own:
                 mock_own.return_value.status_code = 200
-                self.post('/auth', data=data, expected_status_code=http_client.UNAUTHORIZED)
+                self.post('/auth', data=data, expected_status_code=HTTPStatus.UNAUTHORIZED)
 
 
 old_style_user_pass_data = {
@@ -167,6 +170,7 @@ uuid_auth_with_provider_data = {
     },
     'automatic_account_creation': True
 }
+
 
 class _BasePlayerAttributeTestCase(DriftBaseTestCase):
     def _old_authenticate_without_roles(self, username, password, automatic_account_creation=True):
@@ -221,41 +225,41 @@ class _BasePlayerAttributeTestCase(DriftBaseTestCase):
 class PlayerRoleTestCase(_BasePlayerAttributeTestCase):
 
     def test_player_has_player_role(self):
-        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=http_client.OK)
+        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=HTTPStatus.OK)
         user = self.get('/', headers={'Authorization': f"BEARER {token.json()['token']}"}).json()['current_user']
         self.assertIn('player', user['roles'])
 
     def test_existing_users_get_player_role_added(self):
         with mock.patch('driftbase.auth.authenticate.authenticate', self._old_authenticate_without_roles):
-            token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=http_client.OK)
+            token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=HTTPStatus.OK)
             user = self.get('/', headers={'Authorization': f"BEARER {token.json()['token']}"}).json()['current_user']
             self.assertNotIn('player', user['roles'])
 
-        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=http_client.OK)
+        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=HTTPStatus.OK)
         user = self.get('/', headers={'Authorization': f"BEARER {token.json()['token']}"}).json()['current_user']
         self.assertIn('player', user['roles'])
 
 
 class PlayerUUIDTestCase(_BasePlayerAttributeTestCase):
     def test_player_has_uuid(self):
-        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=http_client.OK).json()
+        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=HTTPStatus.OK).json()
         user = self.get('/', headers={'Authorization': f"BEARER {token['token']}"}).json()['current_user']
         self.assertIn('player_uuid', user)
 
     def test_existing_users_get_uuid_added(self):
         with mock.patch('driftbase.auth.authenticate.authenticate', self._old_authenticate_without_roles):
-            token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=http_client.OK).json()
+            token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=HTTPStatus.OK).json()
             user = self.get('/', headers={'Authorization': f"BEARER {token['token']}"}).json()['current_user']
             self.assertNotIn('player_uuid', user)
 
-        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=http_client.OK).json()
+        token = self.post('/auth', data=old_style_user_pass_data, expected_status_code=HTTPStatus.OK).json()
         user = self.get('/', headers={'Authorization': f"BEARER {token['token']}"}).json()['current_user']
         self.assertIn('player_uuid', user)
 
 
 class BaseAuthTestCase(DriftBaseTestCase):
     def _auth_and_get_user(self, data):
-        token1 = self.post('/auth', data=data, expected_status_code=http_client.OK)
+        token1 = self.post('/auth', data=data, expected_status_code=HTTPStatus.OK)
         user1 = self.get('/', headers={'Authorization': f"BEARER {token1.json()['token']}"}).json()['current_user']
         return user1
 
@@ -286,24 +290,24 @@ class UserPassAuthTests(BaseAuthTestCase):
     def test_user_pass_with_missing_properties(self):
         data = old_style_user_pass_data
         del data['username']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
         data = old_style_user_pass_data
         del data['password']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
 
         data = old_style_auth_with_user_pass_provider_data
         del data['username']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
         data = old_style_auth_with_user_pass_provider_data
         del data['password']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
 
         data = user_pass_auth_with_provider_data
         del data['provider_details']['username']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
         data = user_pass_auth_with_provider_data
         del data['provider_details']['password']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
 
     def test_old_style_uuid(self):
         user1 = self._auth_and_get_user(old_style_uuid_data)
@@ -334,24 +338,24 @@ class UserPassAuthTests(BaseAuthTestCase):
     def test_uuid_with_missing_properties(self):
         data = old_style_uuid_data
         del data['username']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
         data = old_style_uuid_data
         del data['password']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
 
         data = old_style_uuid_provider_data
         del data['username']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
         data = old_style_uuid_provider_data
         del data['password']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
 
         data = uuid_auth_with_provider_data
         del data['provider_details']['key']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
         data = uuid_auth_with_provider_data
         del data['provider_details']['secret']
-        self.post('/auth', data=data, expected_status_code=http_client.BAD_REQUEST)
+        self.post('/auth', data=data, expected_status_code=HTTPStatus.BAD_REQUEST)
 
     def test_user_pass_methods_resolve_to_same_user(self):
         user1 = self._auth_and_get_user(old_style_user_pass_data)
@@ -374,3 +378,36 @@ class UserPassAuthTests(BaseAuthTestCase):
         self.assertEqual(user2['identity_id'], user3['identity_id'])
         self.assertEqual(user2['user_id'], user3['user_id'])
         self.assertEqual(user2['provider_user_id'], user3['provider_user_id'])
+
+
+class SessionCacheTests(BaseCloudkitTest):
+    provider_data = {
+        'provider': 'user+pass',
+        'provider_details': {
+            'username': 'test_user_',
+            'password': 'test',
+        },
+        'automatic_account_creation': True
+    }
+
+    def test_user_cache(self):
+        self.provider_data['provider_details']['username'] = 'test_user_cache_user'
+        token = self.post('/auth', data=self.provider_data, expected_status_code=HTTPStatus.OK)
+        user = self.get('/', headers={'Authorization': f"BEARER {token.json()['token']}"}).json()['current_user']
+        from drift.core.resources.redis import UserCache
+        with self._request_context(path="/auth"):
+            cached_info = UserCache().get_all(user["user_id"])
+        assert set(cached_info.keys()).issubset(set(user.keys()))
+        for k, v in cached_info.items():
+            assert v == user[k]
+
+    def test_player_cache(self):
+        self.provider_data['provider_details']['username'] = 'test_player_cache_user'
+        token = self.post('/auth', data=self.provider_data, expected_status_code=HTTPStatus.OK)
+        user = self.get('/', headers={'Authorization': f"BEARER {token.json()['token']}"}).json()['current_user']
+        from drift.core.resources.redis import PlayerCache
+        with self._request_context(path="/auth"):
+            cached_info = PlayerCache().get_all(user["player_id"])
+        assert set(cached_info.keys()).issubset(set(user.keys()))
+        for k, v in cached_info.items():
+            assert v == user[k]

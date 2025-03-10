@@ -14,6 +14,7 @@ from drift.core.resources.postgres import get_sqlalchemy_session
 from drift.core.resources.redis import get_redis_session
 from contextlib import contextmanager
 
+
 class BaseCloudkitTest(DriftBaseTestCase):
     def make_player(self, username=None):
         username = username or uuid_string()

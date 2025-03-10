@@ -569,7 +569,7 @@ class FlexMatchTest(_BaseFlexmatchTest):
         self.auth(username)
         response = self.get(ticket_url, expected_status_code=http_client.OK).json()
         self.assertEqual(response["ticket_status"], "COMPLETED")
-        time.sleep(1)
+        time.sleep(1.5)
         self.get(ticket_url, expected_status_code=http_client.NOT_FOUND)
 
     def test_extra_matchmaking_data_is_included_in_ticket(self):
