@@ -1,7 +1,7 @@
 import logging
 
 import marshmallow as ma
-from drift.core.extensions.jwt import current_user
+from drift.core.extensions.jwt import current_user, requires_roles
 from drift.core.extensions.urlregistry import Endpoints
 from flask import g, url_for, current_app
 from flask.views import MethodView
@@ -18,7 +18,7 @@ from driftbase.api.players import (
     summary,
     tickets,
 )
-from driftbase.models.db import CorePlayer, MatchPlayer
+from driftbase.models.db import CorePlayer, MatchPlayer, User
 from driftbase.players import get_playergroup_ids
 from driftbase.utils import url_player
 from driftbase.schemas.players import PlayerSchema
@@ -29,8 +29,10 @@ bp = Blueprint('players', __name__, url_prefix='/players')
 
 endpoints = Endpoints()
 
+
 def _get_shoutout():
     return current_app.extensions["shoutout"]
+
 
 def _get_db():
     return g.db
@@ -39,17 +41,13 @@ class PlayersListArgs(ma.Schema):
     class Meta:
         strict = True
 
-    player_id = ma.fields.List(
-        ma.fields.Integer(), metadata=dict(description="Player ID's to filter for"
-    ))
+    player_id = ma.fields.List(ma.fields.Integer(), metadata=dict(description="Player ID's to filter for"))
     rows = ma.fields.Integer(metadata=dict(description="Number of rows to return, maximum of 100"))
     player_group = ma.fields.String(
-        metadata=dict(description="The player group the players should belong to (see player-group api)"
-    ))
-    key = ma.fields.List(ma.fields.String(), metadata=dict(description="Only return these columns"))
-    player_name = ma.fields.String(
-        metadata=dict(description="Player name to search for")
+        metadata=dict(description="The player group the players should belong to (see player-group api)")
     )
+    key = ma.fields.List(ma.fields.String(), metadata=dict(description="Only return these columns"))
+    player_name = ma.fields.String(metadata=dict(description="Player name to search for"))
 
 
 class PlayerPatchArgs(ma.Schema):
@@ -219,6 +217,51 @@ class PlayerAPI(MethodView):
         _get_shoutout().message("player:name_updated", **message_data)
 
         return my_player
+
+
+@bp.route('/<int:player_id>/banned', endpoint='ban')
+class PlayerAPI(MethodView):
+    class PlayerBanSchema(ma.Schema):
+        banned = ma.fields.Boolean()
+
+    @bp.response(http_client.OK, PlayerBanSchema())
+    def get(self, player_id):
+        """
+        Query for ban status
+        """
+        user = g.db.query(User).join(CorePlayer).filter(CorePlayer.player_id == player_id).first()
+        if user is None:
+            return abort(http_client.NOT_FOUND)
+        return dict(banned=(user.status == "banned"))
+
+    @requires_roles("game_service,service")
+    @bp.response(http_client.OK, PlayerBanSchema())
+    def post(self, player_id):
+        """
+        Ban a player
+        """
+        user = g.db.query(User).join(CorePlayer).filter(CorePlayer.player_id == player_id).first()
+        if user is None:
+            return abort(http_client.NOT_FOUND)
+        if user.status != "banned":
+            user.status = "banned"
+            g.db.commit()
+            current_app.shoutout.message("player:banned", player_id=player_id)
+        return dict(banned=True)
+
+    @requires_roles("game_service,service")
+    def delete(self, player_id):
+        """
+        Lift a ban from a player
+        """
+        user = g.db.query(User).join(CorePlayer).filter(CorePlayer.player_id == player_id).first()
+        if user is None:
+            return abort(http_client.NOT_FOUND)
+        if user.status == "banned":
+            user.status = "active"
+            g.db.commit()
+            current_app.shoutout.message("player:unbanned", player_id=player_id)
+        return dict(banned=False)
 
 
 @endpoints.register
