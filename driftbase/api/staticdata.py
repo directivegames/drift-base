@@ -34,7 +34,7 @@ def drift_init_extension(app, **kwargs):
 #     staticdata: {
 #         index_root: S3_INDEX_URL,
 #         cdn_list: [
-#             ('name', EXTERNAL_DATA_URL),
+#             {name: 'name', root_url: EXTERNAL_DATA_URL},
 #         ],
 #     },
 # }
@@ -132,10 +132,10 @@ class StaticDataAPI(MethodView):
                     "commit_id": ref["commit_id"],
                     "origin": origin,
                     "cdn_list": [
-                        {'cdn': cdn,
-                         'data_root_url': make_data_url(root_url, repository, ref["commit_id"]),
+                        {'cdn': cdn.get('name', cdn[0] if isinstance(cdn, (list, tuple)) else 'unknown'),
+                         'data_root_url': make_data_url(cdn.get('root_url', cdn[1] if isinstance(cdn, (list, tuple)) else ''), repository, ref["commit_id"]),
                          }
-                        for cdn, root_url in cdn_config.get('cdn_list', [])
+                        for cdn in cdn_config.get('cdn_list', [])
                     ],
                 }
                 # legacy single-cdn entry
