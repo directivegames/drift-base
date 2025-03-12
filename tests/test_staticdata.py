@@ -31,12 +31,13 @@ class CfgTest(DriftBaseTestCase):
 
         # Fudge the config a bit
         get_config().tenant["staticdata"] = {
+            "allow_client_pin": False,
             "repository": "borko-games/the-ossomizer",
             "revision": "refs/heads/developmegood",
         }
         cdn_index_root = "s3://directive-tiers.dg-api.com/static-data/"
         cdn_data_root = "https://static-data.dg-api.com/"
-        cdn_list = [("s3", cdn_data_root)]
+        cdn_list = [{"name": "s3", "root_url": cdn_data_root}]
         get_config().tier["staticdata"] = {
             "index_root": cdn_index_root,
             "cdn_list": cdn_list,
@@ -49,7 +50,7 @@ class CfgTest(DriftBaseTestCase):
             s3 = client.return_value
             body = mock.Mock()
             s3.get_object.return_value = {"Body": body}
-            body.read.return_value = json.dumps({"index": [ref1, ref2]}).encode('utf-8')
+            body.read.return_value = json.dumps({"index": {"commits": [ref1, ref2]}}).encode('utf-8')
             resp = self.get(endpoint).json()
 
             # There should be at least one entry in the static_data_urls pointing to developmegood
@@ -79,7 +80,7 @@ class CfgTest(DriftBaseTestCase):
 
             # Test cdn list
             test_root = 'http://test-cdn.com/the/root'
-            cdn_list.append(['test-cdn', test_root])
+            cdn_list.append({"name": 'test-cdn', "root_url": test_root})
             resp = self.get(endpoint).json()
             urls = resp.get('static_data_urls')
             cdns = {cdn_entry['cdn']: cdn_entry['data_root_url'] for cdn_entry in urls[0]['cdn_list']}
