@@ -49,7 +49,7 @@ class CfgTest(DriftBaseTestCase):
             s3 = client.return_value
             body = mock.Mock()
             s3.get_object.return_value = {"Body": body}
-            body.read.return_value = json.dumps({"index": [ref1, ref2]}).encode('utf-8')
+            body.read.return_value = json.dumps({"index": {"commits": [ref1, ref2]}}).encode('utf-8')
             resp = self.get(endpoint).json()
 
             # There should be at least one entry in the static_data_urls pointing to developmegood

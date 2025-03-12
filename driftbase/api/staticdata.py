@@ -110,7 +110,7 @@ class StaticDataAPI(MethodView):
             if err:
                 data["error"] = err
                 continue
-            index_file = {ref_entry["ref"]: ref_entry for ref_entry in index_file["index"]}
+            index_file = {ref_entry["ref"]: ref_entry for ref_entry in index_file["index"].get("commits", [])}
 
             # Use this ref if it matches
             ref = index_file.get(ref_entry["revision"])
