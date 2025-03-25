@@ -87,7 +87,7 @@ class UserIdentitiesTest(DriftBaseTestCase):
         self.auth(username="device_%s" % uuid_string())
         r = self.get("/").json()
         device_user_id = r["current_user"]["user_id"]
-        device_jti = r["current_user"]["jti"]
+        device_jti = self.token
 
         # switch to gamecenter user
         self.headers = headers_gamecenter
