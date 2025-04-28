@@ -190,6 +190,9 @@ def _authenticate(username, password, automatic_account_creation=True, fallback_
     player_name = ""
     if my_identity.user_id:
         my_user = g.db.query(User).get(my_identity.user_id)
+        if my_user.status == "banned":
+            log.info(f"Logon identity is using a banned user {my_user.user_id}")
+            abort_unauthorized("User is banned")
         if my_user.status != "active":
             log.info(f"Logon identity is using an inactive user {my_user.user_id}, creating new one")
             my_user = None
@@ -244,10 +247,11 @@ def _authenticate(username, password, automatic_account_creation=True, fallback_
             log.info(f"Player for user {my_user.user_id} has been created with player_id {my_player.player_id}"
                      f" and uuid {my_player.player_uuid}")
             if "player" in user_roles:
-                current_app.extensions.get('shoutout').message("player_created", user_id=user_id, username=username,
-                                                               player_id=my_player.player_id,
-                                                               player_identity=my_identity.identity_id,
-                                                               player_uuid=my_player.player_uuid.hex)
+                message_data = dict(user_id=user_id, username=username, player_id=my_player.player_id,
+                                    player_identity=my_identity.identity_id, player_uuid=my_player.player_uuid.hex)
+                current_app.shoutout.message("player:player_created", **message_data)
+                # Remove this next line once all services have been updated to listen to the 'player' topic event
+                current_app.shoutout.message("player_created", **message_data)
 
     if my_player:
         if my_player.player_uuid is None:
@@ -286,7 +290,9 @@ def _authenticate(username, password, automatic_account_creation=True, fallback_
             player_identities.append(
                 dict(identity_id=identity.identity_id, identity_type=identity.identity_type, name=identity.name))
         message_data['identities'] = player_identities
-        current_app.extensions.get('shoutout').message("player_login", **message_data)
+        current_app.shoutout.message("player:player_login", **message_data)
+        # Remove this next line once all services have been updated to listen to the 'player' topic event
+        current_app.shoutout.message("player_login", **message_data)
     return ret
 
 

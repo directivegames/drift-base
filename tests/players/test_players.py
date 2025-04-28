@@ -223,3 +223,32 @@ class PlayersTest(BaseCloudkitTest):
         r = self.get(url)
         self.assertIsNotNone(r.json()[0]["player_id"])
         self.assertIsNotNone(r.json()[0]["player_name"])
+
+
+class PlayersBanTest(BaseCloudkitTest):
+    def test_get_ban_status(self):
+        self.auth("test_get_ban_status")
+        r = self.get(self.endpoints["my_player"] + "/banned").json()
+        self.assertFalse(r["banned"])
+
+    def test_ban_player(self):
+        self.auth("test_ban_player")
+        ban_url = self.endpoints["players"] + f"/{self.player_id}/banned"
+        # Test banning fails without game_service role
+        self.post(ban_url, expected_status_code=http_client.FORBIDDEN)
+        with self.as_game_service():
+            r = self.post(ban_url).json()
+            self.assertTrue(r["banned"])
+
+    def test_unban_player(self):
+        self.auth("test_unban_player")
+        ban_url = self.endpoints["players"] + f"/{self.player_id}/banned"
+        with self.as_game_service():
+            self.post(ban_url)
+        r = self.get(ban_url).json()
+        self.assertTrue(r["banned"])
+        # Test unbanning fails without game_service role
+        self.delete(ban_url, expected_status_code=http_client.FORBIDDEN)
+        with self.as_game_service():
+            r = self.delete(ban_url).json()
+        self.assertFalse(r["banned"])
