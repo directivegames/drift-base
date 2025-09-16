@@ -5,11 +5,11 @@ import logging
 import uuid
 
 from drift.blueprint import abort
+from drift.core.resources.redis import PlayerCache, UserCache
 from flask import g, current_app
+from werkzeug.security import check_password_hash
 
 from driftbase.models.db import User, CorePlayer, UserIdentity, UserRole
-from driftbase.utils import UserCache
-from werkzeug.security import check_password_hash
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +90,12 @@ def authenticate_with_provider(auth_info):
 
 
 def authenticate(username, password, automatic_account_creation=True, fallback_username=None):
+    # There's a bunch of possible race conditions that can happen if we don't lock here, so we lock on the username
+    with g.redis.lock(f"user_login_lock:{username}", timeout=10):
+        return _authenticate(username, password, automatic_account_creation, fallback_username)
+
+
+def _authenticate(username, password, automatic_account_creation=True, fallback_username=None):
     """basic authentication"""
     identity_type = ""
     create_roles = set()
@@ -106,6 +112,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
     my_identity = (
         g.db.query(UserIdentity)
         .filter(UserIdentity.name == username)
+        .order_by(UserIdentity.num_logons.desc())
         .first()
     )
 
@@ -113,6 +120,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         my_identity = (
             g.db.query(UserIdentity)
             .filter(UserIdentity.name == fallback_username)
+            .order_by(UserIdentity.num_logons.desc())
             .first()
         )
 
@@ -148,6 +156,7 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
 
         my_identity.set_password(password)
         if is_old:
+            # FIXME: Are there really any old-style users that need to be migrated anymore?
             my_user = g.db.query(User) \
                 .filter(User.user_name == username) \
                 .first()
@@ -270,8 +279,8 @@ def authenticate(username, password, automatic_account_creation=True, fallback_u
         player_uuid=player_uuid.hex if player_uuid else None,
         roles=user_roles
     )
-    cache = UserCache()
-    cache.set_all(user_id, ret)
+    UserCache().set_all(user_id, ret)
+    PlayerCache().set_all(player_id, ret)
     if user_id and player_id and "player" in user_roles:
         message_data = ret.copy()
         player_identities = []
