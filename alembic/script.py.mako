@@ -21,9 +21,17 @@ ${imports if imports else ""}
 
 def upgrade(engine_name):
     print("Upgrading {}".format(engine_name))
-    # your upgrade script goes here
-    # see http://alembic.readthedocs.org/en/latest/tutorial.html for examples
+    upgrade_db()
+
 
 def downgrade(engine_name):
     print("Downgrading {}".format(engine_name))
-    # your downgrade script goes here
+    downgrade_db()
+
+
+def upgrade_db():
+    ${context.get("LOCAL.mw-tenant_upgrades", "pass")}
+
+
+def downgrade_db():
+    ${context.get("LOCAL.mw-tenant_downgrades", "pass")}

@@ -8,14 +8,6 @@ def do_patch():
         print(f"Error importing/patching for gevent in gunicorn.conf.py: {e}")
 
     try:
-        from psycogreen.gevent import patch_psycopg
-        patch_psycopg()
-        import sys
-        sys.stderr.write("patch_psycopg() successful\n")
-    except ImportError as e:
-        print(f"Error importing/patching psycopg for gevent in gunicorn.conf.py: {e}")
-
-    try:
         from drift.contrib.datadog.patch import patch
         patch()
         import sys

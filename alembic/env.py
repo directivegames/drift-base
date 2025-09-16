@@ -10,6 +10,7 @@ from sqlalchemy import pool, create_engine
 from drift.core.resources.postgres import format_connection_string
 from drift.utils import get_tier_name
 from driftconfig.util import get_default_drift_config
+from driftbase.models.db import ModelBase
 
 
 def get_ts():
@@ -24,6 +25,7 @@ alembic_cfg = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
+root_logger_level = logging.getLogger().level
 fileConfig(alembic_cfg.config_file_name)
 db_names = alembic_cfg.get_main_option('databases')
 conn_string = alembic_cfg.get_section_option(db_names, "sqlalchemy.url")
@@ -43,7 +45,10 @@ MASTER_PASSWORD = 'postgres'
 #       'engine1':mymodel.metadata1,
 #       'engine2':mymodel.metadata2
 # }
-target_metadata = {}
+target_metadata = {
+    # For testing and auto-generate support we predefine the "local-config" engine name here
+    "LOCAL.mw-tenant": ModelBase.metadata  # script.py.mako has this name pre-defined.
+}
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -53,11 +58,12 @@ target_metadata = {}
 
 def get_engines():
     if conn_string:
-        engines = {"dude": {"engine": create_engine(conn_string, echo=False,
-                                                    poolclass=pool.NullPool),
-                            "url": conn_string
-                            }
-                   }
+        engines = {
+            "LOCAL.mw-tenant": {
+                "engine": create_engine(conn_string, echo=False, poolclass=pool.NullPool),
+                "url": conn_string
+            }
+        }
         return engines
     engines = {}
     tenants = []
