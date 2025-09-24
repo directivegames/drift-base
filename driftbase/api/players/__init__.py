@@ -159,7 +159,8 @@ class PlayersListAPI(MethodView):
 @bp.route('/<int:player_id>', endpoint='entry')
 class PlayerAPI(MethodView):
     class GetPlayerArgs(ma.Schema):
-        include_total_match_time = ma.fields.Boolean(allow_none=True, dump_default=False, metadata=dict(description="Whether to include total match time"))
+        include_total_match_time = ma.fields.Boolean(allow_none=True, dump_default=False,
+                                                     metadata=dict(description="Whether to include total match time"))
 
     @bp.arguments(GetPlayerArgs, location="query")
     @bp.response(http_client.OK)
