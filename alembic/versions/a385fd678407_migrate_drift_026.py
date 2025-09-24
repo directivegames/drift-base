@@ -1108,7 +1108,7 @@ def downgrade_db():
     op.drop_constraint(op.f('uq_ck_counterentries_counter_id_player_id_period_date_time'), 'ck_counterentries',
                        type_='unique', if_exists=True)
 
-    if 'ck_counterentries_counter_id_player_id_period_date_time_key' not in [c['name'] for c in insp.get_unique_constraints('ck_counterentries')]:
+    if 'ck_counterentries_counter_id_player_id_period_date_time_key' not in [c['name'] for c in inspector.get_unique_constraints('ck_counterentries')]:
         op.create_unique_constraint(op.f('ck_counterentries_counter_id_player_id_period_date_time_key'), 'ck_counterentries',
                                 ['counter_id', 'player_id', 'period', 'date_time'], postgresql_nulls_not_distinct=False)
     op.alter_column(
