@@ -27,7 +27,7 @@ def drift_init_extension(app, **kwargs):
 
 
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 class MachinesPostRequestSchema(ma.Schema):
@@ -81,7 +81,7 @@ class MachinesGetQuerySchema(ma.Schema):
     instance_id = ma.fields.String()
     instance_type = ma.fields.String()
     placement = ma.fields.String()
-    public_ip = ma.fields.String()
+    public_ip = ma.fields.IPv4()
     rows = ma.fields.Integer()
 
     @validates_schema

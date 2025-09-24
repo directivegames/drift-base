@@ -32,7 +32,7 @@ def drift_init_extension(app, **kwargs):
 
 # for mocking
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 def _patch_messages(messages):

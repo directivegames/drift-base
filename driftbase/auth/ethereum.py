@@ -25,7 +25,7 @@ DEFAULT_TIMESTAMP_LEEWAY = 60
 CONTRACT_SIGNER_ERC1271 = 'ERC1271'
 
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 class EthereumProviderAuthDetailsSchema(ma.Schema):

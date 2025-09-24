@@ -11,9 +11,9 @@ class InviteSchema(SQLAlchemyAutoSchema):
         include_fk = True
         ordered = True
         exclude = ("deleted", )
-    issued_by_player_url = AbsoluteUrlFor("players.entry", player_id='<issued_by_player_id>')
+    issued_by_player_url = AbsoluteUrlFor("players.entry", values=dict(player_id='<issued_by_player_id>'))
     issued_by_player_name = fields.String()
-    issued_to_player_url = AbsoluteUrlFor("players.entry", player_id='<issued_to_player_id>')
+    issued_to_player_url = AbsoluteUrlFor("players.entry", values=dict(player_id='<issued_to_player_id>'))
     issued_to_player_name = fields.String()
 
     @pre_dump
@@ -25,5 +25,4 @@ class InviteSchema(SQLAlchemyAutoSchema):
 
 
 class FriendRequestSchema(InviteSchema):
-    accept_url = AbsoluteUrlFor("friendships.list", player_id='<issued_to_player_id>')
-
+    accept_url = AbsoluteUrlFor("friendships.list", values=dict(player_id='<issued_to_player_id>'))

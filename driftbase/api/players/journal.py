@@ -64,7 +64,7 @@ class JournalAPI(MethodView):
             if "journal_id" not in a:
                 abort(http_client.BAD_REQUEST)
         ret = []
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC)
         MAX_DRIFT = 60
         args_list.sort(key=itemgetter('journal_id'))
         client_current_time = args_list[0].get("client_current_time")
@@ -72,7 +72,7 @@ class JournalAPI(MethodView):
             log.warning("Client is uploading journal entries without a client_current_time")
         else:
             client_current_time = parser.parse(client_current_time)
-            diff = (client_current_time.replace(tzinfo=None) - now).total_seconds()
+            diff = (client_current_time - now).total_seconds()
             if abs(diff) > MAX_DRIFT:
                 log.warning("Client's clock is %.0f seconds out of sync. "
                             "Client system time: '%s', Server time: '%s'",
@@ -105,7 +105,7 @@ class JournalAPI(MethodView):
 
             # report if the client's clock is out of sync with the server
             timestamp = parser.parse(args["timestamp"])
-            diff = (timestamp.replace(tzinfo=None) - now).total_seconds()
+            diff = (timestamp - now).total_seconds()
             if abs(diff) > MAX_DRIFT:
                 log.info("Client is sending journal info for journal entry %s '%s' which "
                          "is %.0f seconds out of sync. "

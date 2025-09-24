@@ -79,10 +79,10 @@ def run_ticket_validation(user_id, access_token, nonce):
     except requests.exceptions.RequestException as e:
         log.warning("Oculus authentication request failed: %s", e)
         abort_unauthorized("Oculus ticket validation failed. Can't reach Oculus platform.")
-
-    if ret.status_code != 200 or not ret.json().get('is_valid', False):
-        log.warning("Failed Oculus authentication. Response code %s: %s", ret.status_code, ret.json())
-        abort_unauthorized("User {} not authenticated on Oculus platform.".format(user_id))
+    else:
+        if ret.status_code != 200 or not ret.json().get('is_valid', False):
+            log.warning("Failed Oculus authentication. Response code %s: %s", ret.status_code, ret.json())
+            abort_unauthorized("User {} not authenticated on Oculus platform.".format(user_id))
 
     return user_id
 

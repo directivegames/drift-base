@@ -14,12 +14,11 @@ depends_on = None
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import ENUM, INET, JSON
-from drift.orm import ModelBase, utc_now, Base
+from sqlalchemy.dialects.postgresql import JSON
 
 def upgrade(engine_name):
     print("Upgrading {}".format(engine_name))
-    op.add_column('gs_machines', sa.Column('heartbeat_date', sa.DateTime, server_default=utc_now))
+    op.add_column('gs_machines', sa.Column('heartbeat_date', sa.DateTime, server_default=sa.func.now()))
     op.add_column('gs_machines', sa.Column('config', JSON, nullable=True))
     op.add_column('gs_machines', sa.Column('statistics', JSON, nullable=True))
 

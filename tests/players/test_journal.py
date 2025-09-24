@@ -42,8 +42,9 @@ class JournalTests(DriftBaseTestCase):
         else:
             return int(r.json()[0]["journal_id"])
 
-    def get_timestamp(self):
-        return datetime.datetime.utcnow().isoformat() + "Z"
+    @staticmethod
+    def get_timestamp():
+        return datetime.datetime.now(datetime.UTC).isoformat()
 
     def get_journal_entry(self, action=None, journal_id=None, timestamp=None,
                           details=None, steps=None):

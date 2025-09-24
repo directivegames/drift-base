@@ -31,15 +31,10 @@ class TicketSchema(SQLAlchemyAutoSchema):
         # exclude = ('player_summary',)
 
     player_url = AbsoluteURLFor(
-        'players.entry',
-        player_id='<player_id>'
-    )
+        'players.entry', values=dict(player_id='<player_id>'))
 
     url = AbsoluteURLFor(
-        'player_tickets.entry',
-        player_id='<player_id>',
-        ticket_id='<ticket_id>'
-    )
+        'player_tickets.entry', values=dict(player_id='<player_id>', ticket_id='<ticket_id>'))
     # cannot use Url() because sometimes there is no issuer_id
     issuer_url = ma.fields.String()
 

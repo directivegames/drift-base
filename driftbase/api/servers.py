@@ -27,7 +27,7 @@ def drift_init_extension(app, **kwargs):
 
 
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 class ServersGetArgsSchema(ma.Schema):
@@ -203,7 +203,8 @@ class ServersAPI(MethodView):
                         build_number=args.get("build_number"),
                         target_platform=args.get("target_platform"),
                         build_info=args.get("build_info"),
-                        token=token
+                        token=token,
+                        heartbeat_date=datetime.datetime.now(datetime.UTC)
                         )
         g.db.add(server)
 
@@ -253,7 +254,7 @@ class ServerAPI(MethodView):
         server = g.db.query(Server).get(server_id)
 
         if not server:
-            log.warning("Requested a non-existant battle server: %s", server_id)
+            log.warning("Requested a non-existent battle server: %s", server_id)
             abort(http_client.NOT_FOUND, description="Server not found")
 
         machine_id = server.machine_id

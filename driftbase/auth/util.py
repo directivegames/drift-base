@@ -5,8 +5,7 @@ from six.moves.urllib.parse import urlparse
 import requests
 import boto3
 from werkzeug.exceptions import ServiceUnavailable
-from flask import g
-from flask.globals import _app_ctx_stack
+from flask import g, has_app_context
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ def fetch_url(url, error_title, expire=None):
     expire = expire or 3600  # Cache for one hour.
     redis = None
     content = None
-    if _app_ctx_stack.top and hasattr(g, "redis"):
+    if has_app_context() and hasattr(g, "redis"):
         content = g.redis.get("urlget:" + url)
         redis = g.redis
 

@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 def lock(redis, **kwargs):

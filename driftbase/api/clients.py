@@ -42,7 +42,7 @@ def drift_init_extension(app, **kwargs):
 
 # for mocking
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 client_descriptions = {
@@ -65,9 +65,8 @@ class ClientSchema(SQLAlchemyAutoSchema):
         model = Client
         exclude = ()
 
-    client_url = AbsoluteURLFor('clients.entry',
-                     doc="Fully qualified URL of the client resource",
-                     client_id='<client_id>')
+    client_url = AbsoluteURLFor('clients.entry', doc="Fully qualified URL of the client resource",
+                                values=dict(client_id='<client_id>'))
 
 
 class ClientPostRequestSchema(ma.Schema):
@@ -164,6 +163,8 @@ class ClientsAPI(MethodView):
                         ip_address=request.remote_addr,
                         client_type=args.get("client_type"),
                         identity_id=identity_id,
+                        create_date=datetime.datetime.now(datetime.UTC),
+                        heartbeat=datetime.datetime.now(datetime.UTC),
                         status="active"
                         )
         g.db.add(client)

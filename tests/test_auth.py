@@ -189,8 +189,7 @@ class _BasePlayerAttributeTestCase(DriftBaseTestCase):
         g.db.add(my_identity)
         g.db.flush()
         identity_id = my_identity.identity_id
-        my_user = g.db.query(User).get(my_identity.user_id)
-        self.assertIsNone(my_user)
+        self.assertIsNone(my_identity.user_id)
 
         my_user = User(user_name=username)
         g.db.add(my_user)

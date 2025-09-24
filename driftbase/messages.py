@@ -21,7 +21,7 @@ MAX_PENDING_MESSAGES = 100
 
 # for mocking
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.UTC)
 
 
 def json_serial(obj):

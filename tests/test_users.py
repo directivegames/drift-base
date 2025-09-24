@@ -3,7 +3,7 @@ import http.client as http_client
 from driftbase.systesthelper import DriftBaseTestCase
 from tests import has_key
 
-BIG_NUMBER = 9999999999
+BIG_NUMBER = 2**31 - 1
 
 
 class UsersTest(DriftBaseTestCase):

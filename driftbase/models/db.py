@@ -1,7 +1,7 @@
-import datetime
+from datetime import datetime, timedelta, UTC
 import uuid
 
-from drift.orm import ModelBase, utc_now, Base
+from drift.orm import ModelBase
 from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlalchemy import (
     Column,
@@ -14,7 +14,7 @@ from sqlalchemy import (
     Float,
     Boolean,
 )
-from sqlalchemy import DDL, event
+from sqlalchemy import DDL, event, func
 from sqlalchemy.dialects.postgresql import ENUM, INET, JSON, UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, backref
@@ -22,8 +22,10 @@ from sqlalchemy.schema import Sequence, Index
 from werkzeug.security import generate_password_hash, check_password_hash
 from driftbase.config import get_client_heartbeat_config
 
+
 def utcnow():
-    return datetime.datetime.utcnow()
+    return datetime.now(UTC)
+
 
 class User(ModelBase):
     __tablename__ = "ck_users"
@@ -34,16 +36,16 @@ class User(ModelBase):
     default_player_id = Column("default_player_id", Integer)
     create_date = Column(
         "create_date",
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        server_default=utc_now,
+        server_default=func.now(),
         doc="Timestamp when the user was created",
     )
     logon_date = Column(
         "logon_date",
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        server_default=utc_now,
+        server_default=func.now(),
         doc="Timestamp when the user last authenticated",
     )
     num_logons = Column(
@@ -97,7 +99,7 @@ class UserIdentity(ModelBase):
     user_id = Column(Integer, ForeignKey("ck_users.user_id"), index=True)
     extra_info = Column(JSON, nullable=True)
 
-    logon_date = Column("logon_date", DateTime, nullable=False, server_default=utc_now)
+    logon_date = Column("logon_date", DateTime(timezone=True), nullable=False, server_default=func.now())
     num_logons = Column("num_logons", Integer, default=0)
     last_ip_address = Column(INET, nullable=True)
 
@@ -120,8 +122,8 @@ class CorePlayer(ModelBase):
     player_uuid = Column(UUID(as_uuid=True), index=True, default=uuid.uuid4)
     player_name = Column(Unicode(200), doc="Players display name")
     user_id = Column(Integer, ForeignKey("ck_users.user_id"), index=True)
-    create_date = Column(DateTime, nullable=False, server_default=utc_now)
-    logon_date = Column(DateTime, nullable=False, server_default=utc_now, doc="Last logon date")
+    create_date = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    logon_date = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), doc="Last logon date")
     num_logons = Column(Integer, default=0)
 
     clients = relationship("Client", backref="player")
@@ -156,12 +158,12 @@ class Client(ModelBase):
     client_type = Column(String(20))
     user_id = Column(Integer, ForeignKey("ck_users.user_id"), index=True)
     player_id = Column(Integer, ForeignKey("ck_players.player_id"), index=True)
-    create_date = Column(DateTime, nullable=False, server_default=utc_now)
+    create_date = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     build = Column(String(100), index=True)
     platform_type = Column(String(20))
     version = Column(String(20))
     app_guid = Column(String(100))
-    heartbeat = Column(DateTime, nullable=False, server_default=utc_now)
+    heartbeat = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     num_heartbeats = Column(Integer, default=1)
     platform_version = Column(String(20), nullable=True)
     ip_address = Column(INET, nullable=True, index=True)
@@ -180,7 +182,7 @@ class Client(ModelBase):
         _, heartbeat_timeout = get_client_heartbeat_config()
         if (
                 self.status == "active"
-                and self.heartbeat + datetime.timedelta(seconds=heartbeat_timeout)
+                and self.heartbeat + timedelta(seconds=heartbeat_timeout)
                 >= utcnow()
         ):
             return True
@@ -193,7 +195,7 @@ tbl_client = Client.__table__
 class ConnectEvent(ModelBase):
     __tablename__ = "ck_connect_events"
     event_id = Column(BigInteger, Sequence("ck_event_id_seq"), primary_key=True)
-    event_date = Column(DateTime, nullable=False, server_default=utc_now)
+    event_date = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     event_type_id = Column(Integer, nullable=False)
     user_id = Column(
         Integer, ForeignKey("ck_users.user_id"), nullable=False, index=True
@@ -208,7 +210,7 @@ class UserEvent(ModelBase):
     )
 
     event_id = Column(BigInteger, Sequence("ck_event_id_seq"), primary_key=True)
-    event_date = Column(DateTime, nullable=False, server_default=utc_now)
+    event_date = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     event_type_id = Column(Integer, nullable=False)
     user_id = Column(
         Integer, ForeignKey("ck_users.user_id"), nullable=False, index=True
@@ -238,13 +240,14 @@ class PlayerCounter(ModelBase):
         Integer, ForeignKey("ck_players.player_id"), nullable=False, index=True
     )
     num_updates = Column(Integer, nullable=False, default=1)
-    last_update = Column(DateTime, nullable=True)
+    last_update = Column(DateTime(timezone=True), nullable=True)
 
     UniqueConstraint(counter_id, player_id)
 
 
-class CounterEntry(Base):
+class CounterEntry(ModelBase):
     __tablename__ = "ck_counterentries"
+    __skip_columns__ = ['create_date', 'modify_date']
 
     id = Column(BigInteger, primary_key=True)
     counter_id = Column(
@@ -265,7 +268,7 @@ class CounterEntry(Base):
         nullable=False,
         index=True,
     )
-    date_time = Column(DateTime, nullable=False, index=True, server_default=utc_now)
+    date_time = Column(DateTime(timezone=True), nullable=False, index=True, server_default=func.now())
     value = Column(Float, nullable=False)
     context_id = Column(Integer, nullable=True, index=True)
 
@@ -287,12 +290,12 @@ class Machine(ModelBase):
     public_ip = Column(INET, nullable=True)
     private_ip = Column(INET, nullable=True)
     server_count = Column(Integer, nullable=True, default=0)
-    server_date = Column(DateTime, nullable=True)
+    server_date = Column(DateTime(timezone=True), nullable=True)
     machine_info = Column(JSON, nullable=True)
     details = Column(JSON, nullable=True)
     status = Column(JSON, nullable=True)
 
-    heartbeat_date = Column(DateTime, nullable=True, server_default=utc_now)
+    heartbeat_date = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
     config = Column(JSON, nullable=True)
     statistics = Column(JSON, nullable=True)
     group_name = Column(String(50), nullable=True)
@@ -310,8 +313,8 @@ class Server(ModelBase):
     command_line_custom = Column(String(4000), nullable=True)
     pid = Column(Integer, nullable=True)
     status = Column(String(50), nullable=True)
-    status_date = Column(DateTime, nullable=True, server_default=utc_now)
-    heartbeat_date = Column(DateTime, nullable=True, server_default=utc_now)
+    status_date = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+    heartbeat_date = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
     heartbeat_count = Column(Integer, nullable=False, server_default="0")
     error = Column(String(4000), nullable=True)
     image_name = Column(String(500), nullable=True)
@@ -336,7 +339,7 @@ class ServerDaemonCommand(ModelBase):
     command = Column(String(50), nullable=False)
     arguments = Column(JSON, nullable=True)
     status = Column(String(50), nullable=True)
-    status_date = Column(DateTime, nullable=True)
+    status_date = Column(DateTime(timezone=True), nullable=True)
     details = Column(JSON, nullable=True)
 
 
@@ -345,8 +348,8 @@ class Match(ModelBase):
 
     match_id = Column(Integer, primary_key=True)
     server_id = Column(Integer, nullable=False)
-    start_date = Column(DateTime, nullable=True, server_default=utc_now)
-    end_date = Column(DateTime, nullable=True)
+    start_date = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+    end_date = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(50), nullable=True)
     num_players = Column(Integer, nullable=True)
     max_players = Column(Integer, nullable=True)
@@ -354,8 +357,9 @@ class Match(ModelBase):
     map_name = Column(String(50), nullable=True)
     match_statistics = Column(JSON, nullable=True)
     details = Column(JSON, nullable=True)
-    status_date = Column(DateTime, nullable=True)
+    status_date = Column(DateTime(timezone=True), nullable=True)
     unique_key = Column(String(50), nullable=True)
+
 
 class MatchPlayer(ModelBase):
     __tablename__ = "gs_matchplayers"
@@ -364,13 +368,14 @@ class MatchPlayer(ModelBase):
     match_id = Column(Integer, index=True)
     player_id = Column(Integer, index=True)
     team_id = Column(Integer, nullable=True, index=True)
-    join_date = Column(DateTime, nullable=True, server_default=utc_now)
-    leave_date = Column(DateTime, nullable=True)
+    join_date = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+    leave_date = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(50), nullable=True)
     num_joins = Column(Integer, nullable=False, default=0)
     seconds = Column(Integer, nullable=False, default=0)
     statistics = Column(JSON, nullable=True)
     details = Column(JSON, nullable=True)
+
 
 class MatchTeam(ModelBase):
     __tablename__ = "gs_matchteams"
@@ -477,7 +482,7 @@ class PlayerJournal(ModelBase):
 
     sequence_id = Column(BigInteger, primary_key=True)
     journal_id = Column(Integer, nullable=False, server_default="0", index=True)
-    timestamp = Column(DateTime, nullable=True, index=False)
+    timestamp = Column(DateTime(timezone=True), nullable=True, index=False)
     player_id = Column(
         Integer, ForeignKey("ck_players.player_id"), nullable=False, index=True
     )
@@ -502,7 +507,7 @@ class Ticket(ModelBase):
 
     # when ticket is claimed by client we add the journal_id and date
     journal_id = Column(Integer, nullable=True, index=True)
-    used_date = Column(DateTime, nullable=True, index=False)
+    used_date = Column(DateTime(timezone=True), nullable=True, index=False)
 
 
 class PlayerEvent(ModelBase):
@@ -565,11 +570,12 @@ class FriendInvite(ModelBase):
     id = Column(BigInteger, Sequence("ck_friend_invites_id_seq"), primary_key=True)
     issued_by_player_id = Column(Integer, ForeignKey("ck_players.player_id"), nullable=False, index=True)
     token = Column(String(50), nullable=False, index=True)
-    expiry_date = Column(DateTime, nullable=False)
+    expiry_date = Column(DateTime(timezone=True), nullable=False)
     deleted = Column(Boolean, nullable=True, default=False)
     issued_to_player_id = Column(Integer, ForeignKey("ck_players.player_id"), nullable=True, index=True)
 
     UniqueConstraint(token, name="uq_ck_friend_invites_token")
+
 
 event.listen(
     CorePlayer.__table__,
