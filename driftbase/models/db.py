@@ -1,7 +1,7 @@
-import datetime
+from datetime import datetime, timedelta, UTC
 import uuid
 
-from drift.orm import ModelBase, Base
+from drift.orm import ModelBase
 from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlalchemy import (
     Column,
@@ -24,7 +24,7 @@ from driftbase.config import get_client_heartbeat_config
 
 
 def utcnow():
-    return datetime.datetime.now(datetime.UTC)
+    return datetime.now(UTC)
 
 
 class User(ModelBase):
@@ -36,14 +36,14 @@ class User(ModelBase):
     default_player_id = Column("default_player_id", Integer)
     create_date = Column(
         "create_date",
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
         doc="Timestamp when the user was created",
     )
     logon_date = Column(
         "logon_date",
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
         doc="Timestamp when the user last authenticated",
@@ -182,7 +182,7 @@ class Client(ModelBase):
         _, heartbeat_timeout = get_client_heartbeat_config()
         if (
                 self.status == "active"
-                and self.heartbeat + datetime.timedelta(seconds=heartbeat_timeout)
+                and self.heartbeat + timedelta(seconds=heartbeat_timeout)
                 >= utcnow()
         ):
             return True
@@ -245,8 +245,9 @@ class PlayerCounter(ModelBase):
     UniqueConstraint(counter_id, player_id)
 
 
-class CounterEntry(Base):
+class CounterEntry(ModelBase):
     __tablename__ = "ck_counterentries"
+    __skip_columns__ = ['create_date', 'modify_date']
 
     id = Column(BigInteger, primary_key=True)
     counter_id = Column(

@@ -10,7 +10,10 @@ from sqlalchemy import pool, create_engine
 from drift.core.resources.postgres import format_connection_string
 from drift.utils import get_tier_name
 from driftconfig.util import get_default_drift_config
+from driftbase.models import import_all_models
 from driftbase.models.db import ModelBase
+
+import_all_models()
 
 
 def get_ts():
@@ -49,6 +52,10 @@ target_metadata = {
     # For testing and auto-generate support we predefine the "local-config" engine name here
     "LOCAL.mw-tenant": ModelBase.metadata  # script.py.mako has this name pre-defined.
 }
+# To support using a non-local db as a baseline for auto-generate, support env var with a connection string
+# e.g. for DEV DB through a ssh tunnel
+# 'postgresql://dg_drift_user:<password>@localhost:15432/dg-perseus.tournament'
+conn_string = os.getenv("ALEMBIC_BASE_DB", conn_string)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
