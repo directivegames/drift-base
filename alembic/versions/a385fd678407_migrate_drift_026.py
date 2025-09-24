@@ -80,7 +80,7 @@ def upgrade_db():
         postgresql_using="date_time AT TIME ZONE 'UTC'")
     op.drop_constraint(
         op.f('ck_counterentries_counter_id_player_id_period_date_time_key'), 'ck_counterentries',
-        type_='unique')
+        type_='unique', if_exists=True)
     op.create_unique_constraint(
         op.f('uq_ck_counterentries_counter_id_player_id_period_date_time'), 'ck_counterentries',
         ['counter_id', 'player_id', 'period', 'date_time'])
@@ -223,7 +223,7 @@ def upgrade_db():
         existing_server_default=sa.text("timezone('utc'::text, now())"),
         postgresql_using="modify_date AT TIME ZONE 'UTC'")
     op.drop_constraint(
-        op.f('ck_playercounters_counter_id_player_id_key'), 'ck_playercounters', type_='unique')
+        op.f('ck_playercounters_counter_id_player_id_key'), 'ck_playercounters', type_='unique', if_exists=True)
     op.create_unique_constraint(
         op.f('uq_ck_playercounters_counter_id_player_id'), 'ck_playercounters', ['counter_id', 'player_id'])
     op.alter_column(
