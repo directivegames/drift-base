@@ -83,7 +83,7 @@ def upgrade_db():
         type_='unique', if_exists=True)
     op.create_unique_constraint(
         op.f('uq_ck_counterentries_counter_id_player_id_period_date_time'), 'ck_counterentries',
-        ['counter_id', 'player_id', 'period', 'date_time'])
+        ['counter_id', 'player_id', 'period', 'date_time'], if_not_exists=True)
     op.alter_column(
         'ck_counters', 'create_date',
         existing_type=postgresql.TIMESTAMP(),
@@ -225,7 +225,8 @@ def upgrade_db():
     op.drop_constraint(
         op.f('ck_playercounters_counter_id_player_id_key'), 'ck_playercounters', type_='unique', if_exists=True)
     op.create_unique_constraint(
-        op.f('uq_ck_playercounters_counter_id_player_id'), 'ck_playercounters', ['counter_id', 'player_id'])
+        op.f('uq_ck_playercounters_counter_id_player_id'), 'ck_playercounters', ['counter_id', 'player_id'],
+        if_not_exists=True)
     op.alter_column(
         'ck_playerjournal', 'timestamp',
         existing_type=postgresql.TIMESTAMP(),
@@ -267,7 +268,8 @@ def upgrade_db():
         existing_nullable=False,
         existing_server_default=sa.text("timezone('utc'::text, now())"),
         postgresql_using="modify_date AT TIME ZONE 'UTC'")
-    op.create_index(op.f('ix_ck_players_player_uuid'), 'ck_players', ['player_uuid'], unique=False)
+    op.create_index(op.f('ix_ck_players_player_uuid'), 'ck_players', ['player_uuid'],
+                    unique=False, if_exists=True)
     op.alter_column(
         'ck_tickets', 'used_date',
         existing_type=postgresql.TIMESTAMP(),
@@ -905,7 +907,7 @@ def downgrade_db():
         type_=postgresql.TIMESTAMP(),
         existing_nullable=True,
         postgresql_using="used_date AT TIME ZONE 'UTC'")
-    op.drop_index(op.f('ix_ck_players_player_uuid'), table_name='ck_players')
+    op.drop_index(op.f('ix_ck_players_player_uuid'), table_name='ck_players', if_exists=True)
     op.alter_column(
         'ck_players', 'modify_date',
         existing_type=sa.DateTime(timezone=True),
@@ -1089,9 +1091,10 @@ def downgrade_db():
         existing_server_default=sa.text("timezone('utc'::text, now())"),
         postgresql_using="create_date AT TIME ZONE 'UTC'")
     op.drop_constraint(op.f('uq_ck_counterentries_counter_id_player_id_period_date_time'), 'ck_counterentries',
-                       type_='unique')
+                       type_='unique', if_exists=True)
     op.create_unique_constraint(op.f('ck_counterentries_counter_id_player_id_period_date_time_key'), 'ck_counterentries',
-                                ['counter_id', 'player_id', 'period', 'date_time'], postgresql_nulls_not_distinct=False)
+                                ['counter_id', 'player_id', 'period', 'date_time'],
+                                postgresql_nulls_not_distinct=False, if_not_exists=True)
     op.alter_column(
         'ck_counterentries', 'date_time',
         existing_type=sa.DateTime(timezone=True),
