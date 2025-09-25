@@ -180,8 +180,7 @@ def run_migrations_online():
     """
     engines = get_engines()
 
-    # for the direct-to-DB use case, start a transaction on all
-    # engines, then run all migrations, then commit all transactions.
+    # for the direct-to-DB use case, run each migration sequentially in a transaction.
     for name, rec in engines.items():
         engine = rec['engine']
         rec['connection'] = conn = engine.connect()
@@ -191,8 +190,7 @@ def run_migrations_online():
         else:
             rec['transaction'] = conn.begin()
 
-    try:
-        for name, rec in engines.items():
+        try:
             logger.info("Migrating database %s" % name)
             context.configure(
                 connection=rec['connection'],
@@ -202,18 +200,14 @@ def run_migrations_online():
             )
             context.run_migrations(engine_name=name)
 
-        if USE_TWOPHASE:
-            for rec in engines.values():
+            if USE_TWOPHASE:
                 rec['transaction'].prepare()
 
-        for rec in engines.values():
             rec['transaction'].commit()
-    except BaseException:
-        for rec in engines.values():
+        except BaseException:
             rec['transaction'].rollback()
-        raise
-    finally:
-        for rec in engines.values():
+            raise
+        finally:
             rec['connection'].close()
 
 
