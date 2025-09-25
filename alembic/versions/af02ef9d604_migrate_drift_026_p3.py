@@ -111,8 +111,7 @@ def _create_index_concurrently_if_missing(idx_name, table, cols):
     col_list = ", ".join(cols)
     with op.get_context().autocommit_block():
         op.execute(
-            f'CREATE INDEX IF NOT EXISTS CONCURRENTLY {idx_name} '
-            f'ON "{SCHEMA}"."{table}" ({col_list})'
+            f'CREATE INDEX CONCURRENTLY IF NOT EXISTS {idx_name} ON "{SCHEMA}"."{table}" ({col_list})'
         )
 
 
