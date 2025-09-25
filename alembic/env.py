@@ -180,41 +180,24 @@ def run_migrations_online():
     """
     engines = get_engines()
 
-    # for the direct-to-DB use case, start a transaction on all
-    # engines, then run all migrations, then commit all transactions.
-    for name, rec in engines.items():
-        engine = rec['engine']
-        rec['connection'] = conn = engine.connect()
-
-        if USE_TWOPHASE:
-            rec['transaction'] = conn.begin_twophase()
-        else:
-            rec['transaction'] = conn.begin()
-
     try:
         for name, rec in engines.items():
             logger.info("Migrating database %s" % name)
-            context.configure(
-                connection=rec['connection'],
-                upgrade_token="%s_upgrades" % name,
-                downgrade_token="%s_downgrades" % name,
-                target_metadata=target_metadata.get(name)
-            )
-            context.run_migrations(engine_name=name)
+            engine = rec['engine']
+            with engine.connect() as conn:
+                context.configure(
+                    connection=conn,
+                    upgrade_token="%s_upgrades" % name,
+                    downgrade_token="%s_downgrades" % name,
+                    target_metadata=target_metadata.get(name),
+                    transaction_per_migration=True,  # this is actually the default, but explicit is nicer
+                )
+                with context.begin_transaction():
+                    context.run_migrations(engine_name=name)
 
-        if USE_TWOPHASE:
-            for rec in engines.values():
-                rec['transaction'].prepare()
-
-        for rec in engines.values():
-            rec['transaction'].commit()
-    except BaseException:
-        for rec in engines.values():
-            rec['transaction'].rollback()
+    except BaseException as e:
+        logger.error("Migration failed: %s", e)
         raise
-    finally:
-        for rec in engines.values():
-            rec['connection'].close()
 
 
 if context.is_offline_mode():

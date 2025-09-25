@@ -32,7 +32,7 @@ def upgrade(engine_name):
         sa.Column('create_date', sa.DateTime, nullable=False, server_default=utc_now),
         sa.Column('modify_date', sa.DateTime, nullable=False, server_default=utc_now, onupdate=datetime.datetime.utcnow),
         sa.Column('status', sa.String(20), nullable=False, server_default="active"),
-        sa.CheckConstraint('player1_id < player2_id'),
+        sa.CheckConstraint('player1_id < player2_id', name='player1_lt_player2'),
     )
     sql = "GRANT INSERT, SELECT, UPDATE, DELETE ON TABLE ck_friendships to zzp_user;"
     op.execute(sql)

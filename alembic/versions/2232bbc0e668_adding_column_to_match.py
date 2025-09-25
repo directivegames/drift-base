@@ -20,6 +20,7 @@ def upgrade(engine_name):
     print("Upgrading {}".format(engine_name))
     op.add_column('gs_matches', sa.Column('total_players', sa.Integer, nullable=True))
 
+
 def downgrade(engine_name):
     print("Downgrading {}".format(engine_name))
-    op.drop_column('gs_matches', 'total_players')
+    op.drop_column('gs_matches', 'total_players', if_exists=True)

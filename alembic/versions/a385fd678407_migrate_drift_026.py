@@ -19,12 +19,18 @@ from sqlalchemy.dialects import postgresql
 
 def upgrade(engine_name):
     print("Upgrading {}".format(engine_name))
-    upgrade_db()
+    # This migration has been split up into parts with optimizations to avoid long locks and excessive table rewrites
+    # The original migration code below is kept for reference
+    #
+    # upgrade_db()
 
 
 def downgrade(engine_name):
     print("Downgrading {}".format(engine_name))
-    downgrade_db()
+    # This migration has been split up into parts with optimizations to avoid long locks and excessive table rewrites
+    # The original migration code below is kept for reference
+    #
+    # downgrade_db()
 
 
 def upgrade_db():

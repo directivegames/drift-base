@@ -1,6 +1,7 @@
 def pytest_configure(config):
-    from gevent import monkey
-    monkey.patch_all()
+    return
+    #from gevent import monkey
+    #monkey.patch_all()
 
     try:
         from ddtrace import tracer
