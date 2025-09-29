@@ -190,7 +190,7 @@ def run_migrations_online():
                     upgrade_token="%s_upgrades" % name,
                     downgrade_token="%s_downgrades" % name,
                     target_metadata=target_metadata.get(name),
-                    transaction_per_migration=True,  # this is actually the default, but explicit is nicer
+                    transaction_per_migration=True,
                 )
                 with context.begin_transaction():
                     context.run_migrations(engine_name=name)
