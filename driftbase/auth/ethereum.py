@@ -1,4 +1,5 @@
 import datetime
+from drift.timeutil import parse_utc
 import http.client as http_client
 import json
 import logging
@@ -161,7 +162,7 @@ def _validate_contract_message(chain_id, contract_signer_type, signer, message, 
 
 def _validate_message_timestamp(message_json, timestamp_leeway):
     try:
-        timestamp = datetime.datetime.fromisoformat(message_json['timestamp'][:-1])
+        timestamp = parse_utc(message_json['timestamp'])
         if utcnow() - timestamp > datetime.timedelta(seconds=timestamp_leeway):
             log.info("Login failed: Timestamp out of bounds",
                         extra=dict(ticket_time=timestamp, current_time=utcnow(), time_diff=utcnow() - timestamp,

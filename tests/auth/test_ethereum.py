@@ -76,7 +76,7 @@ class TestEthereumRunAuthentication(unittest.TestCase):
         self.message = '{\r\n\t"message": "Authorize for Drift login",\r\n\t"timestamp": "2022-01-12T08:12:59.787Z"\r\n}'
         self.signature = '0x5b0bf23f6cccf4315f561a04aef11b60dadced91bc17ac168db14b467851d4010349a8d3fbaec28c4671eb27ba7a8160900b51c2ded5137b3a9804881f3ee32c1c'
         self.bad_signature = '0xdeadbeef6cccf4315f561a04aef11b60dadced91bc17ac168db14b467851d4010349a8d3fbaec28c4671eb27ba7a8160900b51c2ded5137b3a9804881f3ee32c1c'
-        self.timestamp = datetime.datetime.fromisoformat('2022-01-12T08:12:59.787')
+        self.timestamp = datetime.datetime.fromisoformat('2022-01-12T08:12:59.787').replace(tzinfo=datetime.UTC)
 
     def test_authenticates_when_signature_matches(self):
         with mock.patch('driftbase.auth.ethereum.utcnow') as now:
@@ -138,7 +138,7 @@ class TestEthereumRunAuthentication(unittest.TestCase):
                 ethereum._run_ethereum_message_validation(self.address, self.message, self.signature)
 
 
-signature_timestamp = datetime.datetime.fromisoformat('2022-01-12T08:12:59.787')
+signature_timestamp = datetime.datetime.fromisoformat('2022-01-12T08:12:59.787').replace(tzinfo=datetime.UTC)
 
 ethereum_data = {
     'provider': 'ethereum',
@@ -200,7 +200,7 @@ class TestERC1271Authentication(unittest.TestCase):
         self.address = '0x010F33740d3b265989b6a81AEBAC4E4683281732'
         self.message = '{\n  "message": "Hello, world!",\n  "timestamp": "2024-11-30T13:00:04.468Z"\n}'
         self.signature = '0x00020201cff469e561d9dce5b1185cd2ac1fa961f8fbde6100432b5f51aa60f5e255c2ea7f9e8a3e8a7e26279aca73457477f89ff825aba0460c1bfbe187453b580e809357b324b1312b7522ad09514cc924772542b2e032599d1c02030001fdaa99c4f342f74e4e10e9b4fcd7a230adcfcd15453ec02d4e7ab10c1a78f25e1f35993adde6675267322a8a0c288f695c09475b274fd516f5806888ff57921e1c02'
-        self.timestamp = datetime.datetime.fromisoformat('2024-11-30T13:00:04.468')
+        self.timestamp = datetime.datetime.fromisoformat('2024-11-30T13:00:04.468').replace(tzinfo=datetime.UTC)
         self.chain_id = 13371
         self.rpc = 'https://rpc.immutable.com'
         self.correct_params = dict(chain_id=self.chain_id, contract_signer_type=ethereum.CONTRACT_SIGNER_ERC1271, signer=self.address, message=self.message, signature=self.signature)

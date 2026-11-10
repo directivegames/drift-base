@@ -287,10 +287,12 @@ class MatchesAPI(MethodView):
             matches_query = matches_query.order_by(-Match.match_id)
 
             matches_total = matches_query.count()
-            per_page = min(args["per_page"], num_rows)
-            offset = (int(args["page"]) - 1) * per_page
-            matches_query = matches_query.limit(per_page).offset(offset)
-            matches_result = matches_query.all()
+            page = int(args["page"])
+            per_page = max(1, min(int(args["per_page"]), num_rows))
+            matches_result = matches_query.limit(per_page).offset((page - 1) * per_page).all() if page >= 1 else []
+            # Same behaviour as the former flask-sqlalchemy paginate(error_out=True)
+            if page < 1 or (page != 1 and not matches_result):
+                abort(http_client.NOT_FOUND)
 
             include_match_players = args["include_match_players"]
 
@@ -391,7 +393,7 @@ class MatchesAPI(MethodView):
             ret = {
                 "items": matches,
                 "total": matches_total,
-                "page": args["page"],
+                "page": page,
                 "pages": ceil(matches_total / per_page),
                 "per_page": per_page
             }

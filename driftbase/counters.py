@@ -10,7 +10,7 @@ from driftbase.models.db import Counter, CorePlayer, PlayerCounter, CounterEntry
 
 COUNTER_CACHE_TTL = 60 * 10
 
-TOTAL_TIMESTAMP = datetime.datetime.strptime("2000-01-01", "%Y-%m-%d")
+TOTAL_TIMESTAMP = datetime.datetime(2000, 1, 1, tzinfo=datetime.UTC)
 COUNTER_PERIODS = ['total', 'month', 'day', 'hour', 'minute', 'second']
 
 MAX_RETRIES = 3

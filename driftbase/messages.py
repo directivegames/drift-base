@@ -2,6 +2,7 @@ from http import client as http_client
 
 import collections
 import datetime
+from drift.timeutil import format_utc, format_utc_z, parse_utc
 import functools
 import json
 import logging
@@ -27,8 +28,7 @@ def utcnow():
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
     if isinstance(obj, datetime.datetime):
-        serial = obj.isoformat()
-        return serial
+        return format_utc(obj)
     raise TypeError("Type not serializable")
 
 
@@ -72,7 +72,7 @@ def fetch_messages(exchange, exchange_id, messages_after_id=None, rows=None):
             message['payload'] = json.loads(message['payload'])
             message['message_id'] = stripped_message_id
             highest_processed_message_id = stripped_message_id
-            expires = datetime.datetime.fromisoformat(message["expires"][:-1])  # remove trailing 'Z'
+            expires = parse_utc(message["expires"])
             if expires > now:
                 messages.append(message)
                 log.debug("Message %s has been retrieved from queue '%s' in "
@@ -152,8 +152,8 @@ def post_message(exchange, exchange_id, queue, payload, expire_seconds=None, sen
     timestamp = utcnow()
     expires = timestamp + datetime.timedelta(seconds=expire_seconds)
     message = {
-        'timestamp': timestamp.isoformat() + "Z",
-        'expires': expires.isoformat() + "Z",
+        'timestamp': format_utc_z(timestamp),
+        'expires': format_utc_z(expires),
         'sender_id': 0 if sender_system else current_user["player_id"],
         'payload': json.dumps(payload, default=json_serial),
         'queue': queue,

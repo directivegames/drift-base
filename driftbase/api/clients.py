@@ -177,7 +177,7 @@ class ClientsAPI(MethodView):
         user.client_id = client_id
 
         my_identity = g.db.query(UserIdentity).get(identity_id)
-        my_identity.logon_date = datetime.datetime.utcnow()
+        my_identity.logon_date = utcnow()
         my_identity.num_logons += 1
         my_identity.last_ip_address = request.remote_addr
 

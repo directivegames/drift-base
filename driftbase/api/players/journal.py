@@ -1,8 +1,8 @@
-import datetime
+from drift.timeutil import utcnow
+from driftbase.utils.timeutil import parse_utc
 import http.client as http_client
 import logging
 import marshmallow as ma
-from dateutil import parser
 from flask import request, g, url_for, jsonify
 from flask.views import MethodView
 from drift.blueprint import Blueprint, abort
@@ -64,14 +64,14 @@ class JournalAPI(MethodView):
             if "journal_id" not in a:
                 abort(http_client.BAD_REQUEST)
         ret = []
-        now = datetime.datetime.now(datetime.UTC)
+        now = utcnow()
         MAX_DRIFT = 60
         args_list.sort(key=itemgetter('journal_id'))
         client_current_time = args_list[0].get("client_current_time")
         if not client_current_time:
             log.warning("Client is uploading journal entries without a client_current_time")
         else:
-            client_current_time = parser.parse(client_current_time)
+            client_current_time = parse_utc(client_current_time)
             diff = (client_current_time - now).total_seconds()
             if abs(diff) > MAX_DRIFT:
                 log.warning("Client's clock is %.0f seconds out of sync. "
@@ -104,7 +104,7 @@ class JournalAPI(MethodView):
                     .update({"deleted": True})
 
             # report if the client's clock is out of sync with the server
-            timestamp = parser.parse(args["timestamp"])
+            timestamp = parse_utc(args["timestamp"])
             diff = (timestamp - now).total_seconds()
             if abs(diff) > MAX_DRIFT:
                 log.info("Client is sending journal info for journal entry %s '%s' which "

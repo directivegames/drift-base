@@ -178,7 +178,7 @@ class UserIdentitiesTest(DriftBaseTestCase):
             }
         }
         with mock.patch('driftbase.auth.ethereum.utcnow') as now:
-            now.return_value = datetime.datetime.fromisoformat('2022-01-12T08:12:59.787') + datetime.timedelta(seconds=5)
+            now.return_value = datetime.datetime.fromisoformat('2022-01-12T08:12:59.787').replace(tzinfo=datetime.UTC) + datetime.timedelta(seconds=5)
             with mock.patch('driftbase.auth.ethereum.get_provider_config') as config:
                 config.return_value = dict()
                 token = self.post('/auth', data=ethereum_data, expected_status_code=http_client.OK).json()['token']

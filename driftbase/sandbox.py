@@ -1,6 +1,7 @@
 import logging
 import time
 import datetime
+from drift.timeutil import utcnow
 import json
 import uuid
 import http.client as http_client
@@ -143,7 +144,7 @@ def get_running_game_session(location_id: int, queue: str) -> t.Union[str,None]:
                 Server.status == "ready",
                 Match.status == "started",
                 Match.game_mode == "Sandbox",
-                Server.heartbeat_date >= datetime.datetime.utcnow() - datetime.timedelta(seconds=heartbeat_timeout)) \
+                Server.heartbeat_date >= utcnow() - datetime.timedelta(seconds=heartbeat_timeout)) \
         .all()
 
     # FIXME: Do the json field filtering on details in the query

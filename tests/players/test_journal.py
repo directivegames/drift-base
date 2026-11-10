@@ -3,10 +3,10 @@ import http.client as http_client
 import json
 import random
 import unittest
-from dateutil import parser
 
 from drift.test_helpers.systesthelper import setup_tenant, remove_tenant, uuid_string
 from driftbase.systesthelper import DriftBaseTestCase
+from drift.timeutil import parse_utc
 
 MIN_ENTRIES = 0
 
@@ -291,8 +291,8 @@ class JournalTests(DriftBaseTestCase):
 
         r = self.get(r.json()[0]["url"])
 
-        timestamp_received = parser.parse(r.json()["timestamp"])
-        timestamp_expected = parser.parse(timestamp)
+        timestamp_received = parse_utc(r.json()["timestamp"])
+        timestamp_expected = parse_utc(timestamp)
         self.assertEqual(timestamp_received, timestamp_expected)
         journal_id += 1
         entry = {"action": "journal.with.timestamp",

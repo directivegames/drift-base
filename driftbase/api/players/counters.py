@@ -3,12 +3,12 @@
 """
 
 import collections
-import datetime
+from drift.timeutil import format_utc_z, utcnow
+from driftbase.utils.timeutil import parse_utc
 import http.client as http_client
 import logging
 import marshmallow as ma
 import time
-from dateutil import parser
 from flask import request, g, url_for, jsonify
 from flask.views import MethodView
 from drift.blueprint import Blueprint, abort
@@ -161,7 +161,7 @@ class CountersApi(MethodView):
         result = {}
         counter_names = []
         counter_updates = {}
-        timestamp = datetime.datetime.utcnow()
+        timestamp = utcnow()
         for update in args:
             log.debug("Adding count for player %s: %s" % (player_id, update))
 
@@ -280,7 +280,7 @@ class CounterApi(MethodView):
         """
         args = request.json
         value = args["value"]
-        timestamp = parser.parse(args["timestamp"])
+        timestamp = parse_utc(args["timestamp"])
 
         ok = check_and_update_player_counter(player_id, counter_id, timestamp)
         if not ok:
@@ -311,7 +311,7 @@ class CounterPeriodApi(MethodView):
                 .order_by(CounterEntry.period, CounterEntry.id)
             ret = collections.defaultdict(dict)
             for row in counter_entries:
-                ret[row.period][row.date_time.isoformat() + "Z"] = row.value
+                ret[row.period][format_utc_z(row.date_time)] = row.value
 
         else:
             counter_entries = g.db.query(CounterEntry) \
@@ -320,7 +320,7 @@ class CounterPeriodApi(MethodView):
                         CounterEntry.period == period)
             ret = {}
             for row in counter_entries:
-                ret[row.date_time.isoformat() + "Z"] = row.value
+                ret[format_utc_z(row.date_time)] = row.value
         return jsonify(ret)
 
 

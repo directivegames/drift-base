@@ -1,9 +1,9 @@
 import datetime
+from driftbase.utils.timeutil import parse_utc
 import http.client
 import http.client as http_client
 import logging
 import marshmallow as ma
-from dateutil import parser
 from flask import url_for, g, jsonify
 from flask.views import MethodView
 from drift.blueprint import Blueprint, abort
@@ -37,7 +37,7 @@ class MachinesPostRequestSchema(ma.Schema):
     instance_id = ma.fields.String()
     instance_type = ma.fields.String()
     placement = ma.fields.String()
-    public_ip = ma.fields.IPv4()
+    public_ip = ma.fields.String()
     private_ip = ma.fields.IPv4()
     machine_info = ma.fields.Dict()
     details = ma.fields.Dict()
@@ -81,7 +81,7 @@ class MachinesGetQuerySchema(ma.Schema):
     instance_id = ma.fields.String()
     instance_type = ma.fields.String()
     placement = ma.fields.String()
-    public_ip = ma.fields.IPv4()
+    public_ip = ma.fields.String()
     rows = ma.fields.Integer()
 
     @validates_schema
@@ -241,7 +241,7 @@ class MachineAPI(MethodView):
             row.group_name = args["group_name"]
         if args.get("events"):
             for event in args["events"]:
-                timestamp = parser.parse(event["timestamp"])
+                timestamp = parse_utc(event["timestamp"])
                 event_row = MachineEvent(event_type_name=event["event"],
                                          machine_id=machine_id,
                                          details=event,
