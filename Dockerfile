@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION=3.11.8
-ARG BASE_IMAGE=bullseye
+ARG BASE_IMAGE=bookworm
 
 FROM python:${PYTHON_VERSION}-slim-${BASE_IMAGE} AS builder
 
